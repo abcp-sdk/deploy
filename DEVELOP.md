@@ -210,7 +210,7 @@ Per-protocol client setup (one-off commands, hosted-vs-upstream notes):
 | pub (Dart) | `PUB_HOSTED_URL=$A/artifacts/pub` | ✅ `dart pub get` resolved 11 deps |
 | pip | `PIP_INDEX_URL=$A/artifacts/pypi/simple/` + `PIP_TRUSTED_HOST=…` | ✅ index 200 |
 | Go | `GOPROXY=$A/artifacts/go` + `GOSUMDB=off` | ✅ 200 |
-| Gradle/Maven | `$A/artifacts/maven/` + `allowInsecureProtocol = true`; **both** the `allprojects` and the `settings.pluginManagement` block | ✅ all downloads via artifact (plugin JARs too) |
+| Gradle/Maven | `maven.google/` + `maven.gradle/` **before** `maven/`, `allowInsecureProtocol = true`; **both** the `allprojects` and the `settings.pluginManagement` block | ✅ all downloads via artifact (plugin JARs + androidx/AGP too, cold cache) |
 | apt/Debian | `deb [trusted=yes] $A/artifacts/debian/debian trixie main` | ✅ `apt-get update` + install |
 | git (large repos) | `$A/artifacts/git/github.com/…` | ✅ `apple/swift-log`, `apple/swift-nio` clone |
 | SwiftPM | `~/.swiftpm/configuration/mirrors.json` | ✅ `swift package resolve` via artifact |
