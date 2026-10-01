@@ -1,31 +1,43 @@
 # DEVELOP
 
-## Editing the charts
+## Editing the chart
 
-Every chart is a plain Helm v3 chart. Render it locally before opening an MR:
+The chart is a plain Helm v3 chart. Render it locally before opening an MR:
 
 ```sh
-helm template platform  ./charts/platform  -n agent
-helm template infra     ./charts/infra     -n agent
+helm template platform ./charts/platform -n agent
+# the second stack:
+helm template abcp-agent-s2 ./charts/platform -n agent \
+  -f ./charts/platform/values-standalone2.yaml
 ```
 
 There is no cluster access requirement to render. `helm lint` is optional.
 
 ## Conventions
 
-- **One chart per stack**, each self-contained (`Chart.yaml` + `values.yaml` +
-  `templates/`). The `platform` chart renders a ServiceAccount and depends on the
-  shared `infra` release over Service DNS; it never deploys infra itself.
+- **One chart** (`platform`), self-contained (`Chart.yaml` + `values.yaml` +
+  `templates/`). It renders a ServiceAccount, the agent + its extensions, and a
+  self-deployed Selenium node. It does NOT deploy NATS / Garage / Postgres —
+  those are the SHARED `worker`-namespace services owned by `easy-vcs/deploy`
+  and consumed over Service DNS.
+- **No Forgejo, no buildkitd.** The standalone agent needs neither. Do not
+  re-add them.
 - **Namespace**: `.Values.namespaceOverride | default .Release.Namespace`. Every
-  template renders into the release namespace.
+  template renders into the release namespace (the shared infra is cross-
+  namespace and addressed by its Service DNS, e.g. `*.worker.svc.cluster.local`).
+- **Shared-infra names are ABCP-specific**: the NATS account, S3 bucket and
+  Postgres database must be distinct from every other stack on the shared
+  services (see README). The password / access key are supplied at install time,
+  not committed.
 - **Image refs**: `<registry.host>/<namespace>/<repo>:<tag>`, tags pinned in
-  `values.yaml`. The infra chart uses upstream image names directly.
-- **Secrets in values**: the dev cluster commits dev credentials in `values.yaml`
-  (matching the pre-existing `agent` chart). A production values file must
-  override them; never commit a real credential.
+  `values.yaml`. Selenium uses the upstream image name directly.
+- **Selenium**: the URL the playwright extension uses comes from the
+  `abcp-agent.seleniumUrl` helper — an explicit `.Values.selenium.url` wins,
+  otherwise the in-chart Service. Set `selenium.enabled=false` only if you point
+  `selenium.url` at an external node.
 - **Restricted deploy tools**: keep RBAC and privileged/hostPath kinds out of the
-  default release path (see README). The platform chart ships only a
-  namespaced ServiceAccount.
+  default release path (see README). The platform chart ships only a namespaced
+  ServiceAccount.
 
 ## Migrating a chart change back to a code repo
 

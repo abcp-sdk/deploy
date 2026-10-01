@@ -2,32 +2,47 @@
 #
 # Deployed in the `agent` namespace as release `abcp-agent-s2`. Its metadata DB
 # is Postgres (no sqlite, no /data volume). Agent-stack objects use the CANONICAL
-# names (`standalone-agent`, `worker`, `worker-extension`, ...). Its OWN infra
-# (`infra-s2`: nats/postgres/s3/selenium) keeps the `s2-` prefix because the bare
-# names belong to the SHARED `infra` release (used by the workspace stack).
+# names (`standalone-agent`, `worker`, `worker-extension`, ...).
 #
-#   helm install abcp-agent-s2 k8s/chart -n agent -f k8s/chart/values-standalone2.yaml
+# It consumes the SAME shared infrastructure as the default stack (`worker`
+# namespace, owned by easy-vcs/deploy) but with its OWN account / bucket /
+# database so the two stacks never collide on the shared NATS/S3/Postgres.
+# Selenium is self-deployed by this chart (the `s2-`-prefixed Service).
+#
+#   helm install abcp-agent-s2 ./charts/platform -n agent -f ./charts/platform/values-standalone2.yaml
 namespaceOverride: agent
 namePrefix: ""
 
 infra:
   nats:
-    host: "s2-nats.agent.svc.cluster.local"
+    host: "nats.worker.svc.cluster.local"
     port: 4222
-    user: "agent"
-    password: "devpassword"
+    user: "abcp-agent-s2"       # requested account (provided by easy-vcs/deploy)
+    password: "REPLACE_ME"      # provided by easy-vcs/deploy
   s3:
-    bucket: "standalone2"
+    bucket: "abcp-agent-s2"     # requested bucket (provided by easy-vcs/deploy)
     region: "garage"
-    endpoint: "http://s2-s3.agent.svc.cluster.local"
-    accessKey: "GKcd15b16f2e21342a7e47bd4c"
-    secretKey: "019fd7be6d475ebbd7ef1adc6208795c679ec93907dc57e8c60431371f69fe22"
+    endpoint: "http://garage.worker.svc.cluster.local:80"
+    accessKey: "REPLACE_ME"     # provided by easy-vcs/deploy
+    secretKey: "REPLACE_ME"     # provided by easy-vcs/deploy
     pathStyle: true
-    prefix: "standalone2"
-  seleniumUrl: "http://s2-selenium.agent.svc.cluster.local:4444"
+    prefix: "abcp"
   proxy:
     http: "http://mihomo.develop.svc.cluster.local:7890"
     https: "http://mihomo.develop.svc.cluster.local:7890"
+
+# Selenium is self-deployed by this chart (NOT shared). `s2-` prefix so it does
+# not clash with the default stack's Selenium in the same namespace.
+selenium:
+  enabled: true
+  image: docker.io/selenium/standalone-chrome:4.49.0
+  port: 4444
+  service:
+    name: s2-selenium
+  url: ""
+  resources:
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { cpu: "1", memory: 2Gi }
 
 agent:
   image:
@@ -53,11 +68,11 @@ agent:
   db:
     backend: pg
     postgres:
-      host: "s2-postgres.agent.svc.cluster.local"
-      port: 5432
+      host: "postgres.worker.svc.cluster.local"
+      port: 80
       user: "root"
       password: "devpassword"
-      database: "abcp_agent"
+      database: "abcp_agent_s2" # requested DB (provided by easy-vcs/deploy)
 
 webui:
   image:
