@@ -1,0 +1,116 @@
+# agent-worker DESKTOP sandbox — a self-contained graphical sandbox (screen
+# stack + agent-worker baked into one image), viewable in a browser via noVNC.
+#
+# Two flavors share this manifest; switch `image` (and the app label) between:
+#   sandbox/sandbox-desktop:openbox   # pure X11 (openbox)
+#   sandbox/sandbox-desktop:labwc     # pure Wayland (labwc)
+#
+# The gateway does not override the entrypoint, so this image is also a normal
+# CreateSandbox target (org `sandbox`, no kvm). This manifest runs it as a plain
+# Deployment instead — handy for a long-lived desktop, like
+# k8s/agent-worker-android.yaml.
+#
+# Endpoints (inside the pod):
+#   :48080  Worker API  (WorkerService + WorkerEnroll)
+#   :6080   noVNC       (browser screen, open — ClusterIP only)
+#   :5900   VNC         (x11vnc / wayvnc, internal)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-worker-desktop
+  namespace: worker
+  labels:
+    app: agent-worker-desktop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-worker-desktop
+  template:
+    metadata:
+      labels:
+        app: agent-worker-desktop
+    spec:
+      # Only needed if the image comes from a private registry.
+      imagePullSecrets:
+        - name: <registry-credentials>
+      containers:
+        - name: desktop
+          image: git.agent.svc.cluster.local/sandbox/sandbox-desktop:openbox
+          imagePullPolicy: IfNotPresent
+
+          securityContext:
+            privileged: false
+            runAsUser: 0
+            allowPrivilegeEscalation: true
+            seccompProfile: { type: Unconfined }
+            appArmorProfile: { type: Unconfined }
+
+          ports:
+            - { name: worker, containerPort: 48080 }
+            - { name: novnc, containerPort: 6080 }
+            - { name: vnc, containerPort: 5900 }
+
+          env:
+            # Set a value to pre-authorize the worker (zero-touch, no claim);
+            # leave empty for the default random-code enrollment flow.
+            - { name: WORKER_TOKEN, value: "" }
+            - { name: WORKER_PORT, value: "48080" }
+            - { name: WORKER_WORKSPACE, value: "/workspace" }
+            - { name: WORKER_DB, value: "/data/jobs.db" }
+            # Screen size. The X11 flavor uses WxHxD; the Wayland flavor ignores
+            # the depth component (WxH is enough).
+            - { name: SCREEN_GEOMETRY, value: "1920x1080x24" }
+
+          readinessProbe:
+            httpGet: { path: /healthz, port: 48080 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 48080 }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+            limits: { cpu: "2", memory: "4Gi" }
+
+          volumeMounts:
+            - { mountPath: /data, name: data }
+      volumes:
+        # Workspace + job DB. Use emptyDir{} for a fully ephemeral sandbox; a
+        # PVC would persist the desktop user's files across restarts.
+        - name: data
+          emptyDir: {}
+---
+# Worker Connect API (WorkerService + WorkerEnroll).
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-worker-desktop
+  namespace: worker
+  labels:
+    app: agent-worker-desktop
+spec:
+  selector:
+    app: agent-worker-desktop
+  ports:
+    - { name: http, port: 80, targetPort: 48080 }
+    - { name: worker, port: 48080, targetPort: 48080 }
+  type: ClusterIP
+---
+# noVNC browser screen (open, no auth — ClusterIP only).
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-worker-desktop-novnc
+  namespace: worker
+  labels:
+    app: agent-worker-desktop
+spec:
+  selector:
+    app: agent-worker-desktop
+  ports:
+    - { name: novnc, port: 80, targetPort: 6080 }
+  type: ClusterIP

@@ -1,0 +1,126 @@
+# agent-worker Android sandbox — the official Android Emulator plus an Android
+# build toolchain, all in ONE container.
+#
+# A job can `gradle assembleDebug`, `adb install` and `am start` in one place:
+# the worker (host side) drives the KVM-accelerated emulator over adb. The
+# emulator window is shared to a browser as a plain X11 desktop (Xvfb ->
+# x11vnc -> websockify -> noVNC).
+#
+# privileged: false — KVM comes from the squat.ai/kvm device plugin, exactly
+# like the Windows/macOS VM workers.
+#
+# Endpoints (inside the pod):
+#   :48080  Worker API  (WorkerService + WorkerEnroll)
+#   :6080   noVNC       (browser screen, open — ClusterIP only)
+#   :5900   VNC         (x11vnc)
+#   :5555   emulator adbd (internal; used by adb/jobs)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-worker-android
+  namespace: worker
+  labels:
+    app: agent-worker-android
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-worker-android
+  template:
+    metadata:
+      labels:
+        app: agent-worker-android
+    spec:
+      # Only needed if the image comes from a private registry.
+      imagePullSecrets:
+        - name: <registry-credentials>
+      containers:
+        - name: android
+          image: git.agent.svc.cluster.local/sandbox/sandbox-android:aosp
+          imagePullPolicy: IfNotPresent
+
+          securityContext:
+            privileged: false
+            runAsUser: 0
+            allowPrivilegeEscalation: true
+            seccompProfile: { type: Unconfined }
+            appArmorProfile: { type: Unconfined }
+            capabilities:
+              add: ["NET_ADMIN","NET_RAW","SYS_NICE","MKNOD",
+                    "CHOWN","SETUID","SETGID","DAC_OVERRIDE","FOWNER","KILL"]
+
+          ports:
+            - { name: worker, containerPort: 48080 }
+            - { name: novnc, containerPort: 6080 }
+            - { name: vnc, containerPort: 5900 }
+
+          env:
+            # Set a value to pre-authorize the worker (zero-touch, no claim);
+            # leave empty for the default random-code enrollment flow.
+            - { name: WORKER_TOKEN, value: "" }
+            - { name: WORKER_PORT, value: "48080" }
+            - { name: WORKER_WORKSPACE, value: "/workspace" }
+            - { name: WORKER_DB, value: "/data/jobs.db" }
+            # Guest sizing (the container also carries the build toolchain, so
+            # leave headroom above the guest's own allocation).
+            - { name: ANDROID_MEM, value: "4096" }
+            - { name: ANDROID_CPUS, value: "4" }
+
+          readinessProbe:
+            httpGet: { path: /healthz, port: 48080 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 48080 }
+            initialDelaySeconds: 90
+            periodSeconds: 20
+
+          resources:
+            requests: { cpu: "4", memory: "8Gi" }
+            limits:
+              cpu: "8"
+              memory: "16Gi"
+              squat.ai/kvm: "1"        # <- the KVM device request
+
+          volumeMounts:
+            - { mountPath: /dev/net/tun, name: devtun }
+            - { mountPath: /data, name: data }
+      volumes:
+        - name: devtun
+          hostPath: { path: /dev/net/tun, type: CharDevice }
+        # The AVD's userdata; keep it so a restart does not wipe the guest.
+        # Use emptyDir{} for a fully ephemeral guest.
+        - name: data
+          emptyDir: {}
+---
+# Worker Connect API (WorkerService + WorkerEnroll).
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-worker-android
+  namespace: worker
+  labels:
+    app: agent-worker-android
+spec:
+  selector:
+    app: agent-worker-android
+  ports:
+    - { name: http, port: 80, targetPort: 48080 }
+    - { name: worker, port: 48080, targetPort: 48080 }
+  type: ClusterIP
+---
+# noVNC browser screen (open, no auth — ClusterIP only).
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-worker-android-novnc
+  namespace: worker
+  labels:
+    app: agent-worker-android
+spec:
+  selector:
+    app: agent-worker-android
+  ports:
+    - { name: novnc, port: 80, targetPort: 6080 }
+  type: ClusterIP
