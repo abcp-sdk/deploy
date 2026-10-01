@@ -64,7 +64,9 @@ selenium:
   url: ""
   resources:
     requests: { cpu: 100m, memory: 512Mi }
-    limits: { cpu: "1", memory: 2Gi }
+    # 4 CPUs: one Node process serves many concurrent turns with a synchronous
+    # sqlite driver; 1 CPU throttled the event loop and starved the health probe.
+    limits: { cpu: "4", memory: 2Gi }
 
 # Optional model-registry seed (AGENT_PROVIDER_SEED). JSON array of providers;
 # seeded into any tenant that has NO providers yet (create-if-absent). Leave
@@ -80,7 +82,7 @@ providerApiKey: ""
 agent:
   image:
     repository: git.agent.svc.cluster.local/abcp/agent
-    tag: "20261001095724"
+    tag: "20261001194505"
     pullPolicy: IfNotPresent
   # Plain HTTP/1.1 liveness/readiness port (separate from the h2c RPC port).
   healthPort: 8081
@@ -100,6 +102,10 @@ agent:
   idlewatch:
     enabled: true
     interval: "2m"
+    # At boot, resume sessions whose turn was killed mid-flight (the chain
+    # advanced past the last turn's recorded end) instead of waiting for the
+    # first periodic sweep.
+    resumeDanglingOnBoot: true
   # Bearer-token auth. `required`, with a static admin token + a bootstrapped
   # first tenant (token -> tenant).
   auth:

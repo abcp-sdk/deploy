@@ -47,7 +47,7 @@ selenium:
 agent:
   image:
     repository: git.agent.svc.cluster.local/abcp/agent
-    tag: "20261001095724"
+    tag: "20261001194505"
     pullPolicy: IfNotPresent
   # Plain HTTP/1.1 liveness/readiness port (separate from the h2c RPC port).
   healthPort: 8081
@@ -63,7 +63,9 @@ agent:
     bootstrapToken: "devtenanttoken"
   resources:
     requests: { cpu: 100m, memory: 128Mi }
-    limits: { cpu: "1", memory: 1Gi }
+    # 4 CPUs: one Node process serves many concurrent turns; 1 CPU throttled the
+    # event loop and starved the health probe.
+    limits: { cpu: "4", memory: 1Gi }
   # Postgres metadata backend — no sqlite, no /data volume.
   db:
     backend: pg
