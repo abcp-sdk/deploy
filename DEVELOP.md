@@ -40,6 +40,11 @@ There is no cluster access requirement to render. `helm lint` is optional.
   gateway `providerApiKey` are placeholders (`REPLACE_ME`) passed at install
   time. `providerApiKey` is injected by the `abcp-agent.providersSeed` helper
   into every provider in `.Values.providers` that has no `apiKey` of its own.
+- **Default model**: `agent.defaultModel` seeds the tenant `default_model` via
+  `AGENT_CONFIG_SEED` (create-if-absent) so a new session works on its first
+  turn. Distinct from `AGENT_EXT_CONFIG_SEED` (that writes the extension `cfg`
+  bucket; the default model lives in the `abcp-agent-config` KV). Requires an
+  agent image that implements `AGENT_CONFIG_SEED`.
 - **Upgrading a live release**: the infra secrets (`infra.nats.password`,
   `infra.s3.accessKey`, `infra.s3.secretKey`) and `providerApiKey` are NOT in
   `values.yaml`. Always `helm upgrade … --reuse-values` (or re-`--set` all of

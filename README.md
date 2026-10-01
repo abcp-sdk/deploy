@@ -101,6 +101,17 @@ helm upgrade abcp-platform ./charts/platform -n worker \
 supplied at install time and are `REPLACE_ME` in `values.yaml`, so a plain
 upgrade would reset them and break the running agent.
 
+### Default model (first-turn readiness)
+
+`agent.defaultModel` (a `provider_id/model_id` text ref) is seeded as the tenant
+`default_model` (create-if-absent, via `AGENT_CONFIG_SEED`) so a **new** session
+has a working model on its first turn. Without it a fresh session errors with
+`no model selected` until one is picked in Config → Providers. It defaults to
+`gateway-text/tal-coding/deepseek-v4.1-flash`; set it empty to disable.
+
+> Needs an agent image built with `AGENT_CONFIG_SEED` support (bump
+> `agent.image.tag` after that lands in `abc-protocol/agent`).
+
 The agent's metadata DB is the shared **Postgres** (`agent.db.backend: pg`), so
 no `/data` volume is used. Image tags are pinned in `values.yaml` and must match
 tags pushed by each repo's `build-image.sh` (`<registry>/abcp/<name>:<tag>`).
