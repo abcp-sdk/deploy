@@ -5,10 +5,7 @@
 The chart is a plain Helm v3 chart. Render it locally before opening an MR:
 
 ```sh
-helm template platform ./charts/platform -n agent
-# the second stack:
-helm template abcp-agent-s2 ./charts/platform -n agent \
-  -f ./charts/platform/values-standalone2.yaml
+helm template abcp-platform ./charts/platform -n worker
 ```
 
 There is no cluster access requirement to render. `helm lint` is optional.
@@ -20,6 +17,10 @@ There is no cluster access requirement to render. `helm lint` is optional.
   self-deployed Selenium node. It does NOT deploy NATS / Garage / Postgres —
   those are the SHARED `worker`-namespace services owned by `easy-vcs/deploy`
   and consumed over Service DNS.
+- **Release name**: install as `abcp-platform`, NOT `platform` — `platform` is
+  the easy-vcs stack's release name in this cluster, and Helm would upgrade it
+  in place. The deploy tool (`helm-deploy`) also manages other tenants'
+  releases, so always check `helm-list` before choosing a name.
 - **No Forgejo, no buildkitd.** The standalone agent needs neither. Do not
   re-add them.
 - **Namespace**: `.Values.namespaceOverride | default .Release.Namespace`. Every
@@ -39,16 +40,35 @@ There is no cluster access requirement to render. `helm lint` is optional.
   gateway `providerApiKey` are placeholders (`REPLACE_ME`) passed at install
   time. `providerApiKey` is injected by the `abcp-agent.providersSeed` helper
   into every provider in `.Values.providers` that has no `apiKey` of its own.
-- **GUI worker endpoints**: `values-standalone2.yaml`'s `workerExtension.sandboxes`
-  points the linux/macOS/windows entries at the standalone manifests in
-  `worker-k8s/`, which live in the `worker` namespace
-  (`agent-worker-desktop` / `agent-worker-macos` / `agent-worker-windows`).
-  Keep those in sync if the manifests move. The manifests' `WORKER_TOKEN` and
-  the `sandboxes` `token` MUST match (`devdesktop-token` / `devmac-token` /
-  `devwin-token`) or the sandbox answers 401.
+- **Default model**: `agent.defaultModel` seeds the tenant `default_model` via
+  `AGENT_CONFIG_SEED` (create-if-absent) so a new session works on its first
+  turn. Distinct from `AGENT_EXT_CONFIG_SEED` (that writes the extension `cfg`
+  bucket; the default model lives in the `abcp-agent-config` KV). Requires an
+  agent image that implements `AGENT_CONFIG_SEED`.
+- **Upgrading a live release**: the infra secrets (`infra.nats.password`,
+  `infra.s3.accessKey`, `infra.s3.secretKey`) and `providerApiKey` are NOT in
+  `values.yaml`. Always `helm upgrade … --reuse-values` (or re-`--set` all of
+  them), otherwise the upgrade resets them to `REPLACE_ME` and breaks the agent.
+- **GUI worker endpoints**: to use the `computer-*` tools, set
+  `workerExtension.sandboxes` to the standalone manifests under `worker-k8s/`
+  (they live in the `worker` namespace: `agent-worker-desktop` /
+  `agent-worker-macos` / `agent-worker-windows`). The manifests' `WORKER_TOKEN`
+  and the `sandboxes` `token` MUST match or the sandbox answers 401.
 - **Restricted deploy tools**: keep RBAC and privileged/hostPath kinds out of the
   default release path (see README). The platform chart ships only a namespaced
   ServiceAccount.
+
+## Renaming an object leaves an orphan
+
+Helm only tracks the objects in the CURRENT revision; renaming a Deployment/
+Service (or rolling back past a rename) leaves the OLD object running in the
+cluster, owned by nobody. It keeps answering on its Service DNS, which is
+confusing. After any rename, check and delete the stale objects:
+
+```sh
+kubectl -n worker get deploy,svc -l app.kubernetes.io/name=abcp-agent
+# delete any name that is not in the current `helm get manifest abcp-platform`
+```
 
 ## Migrating a chart change back to a code repo
 

@@ -53,8 +53,7 @@ spec:
 
           env:
             # Non-empty => the guest worker starts pre-authorized (no claim).
-            # Must match the token the worker-extension seeds for this sandbox
-            # (`sandboxes` in charts/platform/values-standalone2.yaml).
+            # The worker-extension must use the SAME token in its `sandboxes`.
             - { name: WORKER_TOKEN, value: "devmac-token" }
             - { name: VERSION, value: "15" }
             # macOS wants a power-of-two vCPU count (2/4/8/16/...).

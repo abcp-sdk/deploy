@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "abcp-agent.prefix" . }}agent-webui
+  name: {{ include "abcp-agent.prefix" . }}{{ .Values.webui.deployment.name }}
   namespace: {{ include "abcp-agent.namespace" . }}
   labels:
     {{- include "abcp-agent.labels" . | nindent 4 }}
-    app: {{ include "abcp-agent.prefix" . }}agent-webui
+    app: {{ include "abcp-agent.prefix" . }}{{ .Values.webui.deployment.name }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ include "abcp-agent.prefix" . }}agent-webui
+      app: {{ include "abcp-agent.prefix" . }}{{ .Values.webui.deployment.name }}
   template:
     metadata:
       labels:
         {{- include "abcp-agent.labels" . | nindent 8 }}
-        app: {{ include "abcp-agent.prefix" . }}agent-webui
+        app: {{ include "abcp-agent.prefix" . }}{{ .Values.webui.deployment.name }}
     spec:
       containers:
         - name: webui
@@ -44,7 +44,7 @@ metadata:
 spec:
   type: {{ .Values.webui.service.type }}
   selector:
-    app: {{ include "abcp-agent.prefix" . }}agent-webui
+    app: {{ include "abcp-agent.prefix" . }}{{ .Values.webui.deployment.name }}
   ports:
     - name: http
       port: 80

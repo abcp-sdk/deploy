@@ -37,11 +37,11 @@ over Service DNS and **never deploys them itself**:
 Because the services are shared, the account / bucket / database names MUST be
 ABCP-specific (distinct from every other stack on the same services):
 
-| Knob | Default stack | Second stack (`-s2`) |
-|---|---|---|
-| NATS account (user) | `abcp-agent` | `abcp-agent-s2` |
-| S3 bucket | `abcp-agent` | `abcp-agent-s2` |
-| Postgres database | `abcp_agent` | `abcp_agent_s2` |
+| Knob | Value |
+|---|---|
+| NATS account (user) | `abcp-agent` |
+| S3 bucket | `abcp-agent` |
+| Postgres database | `abcp_agent` |
 
 The NATS **password** and S3 **access/secret key** are issued by
 `easy-vcs/deploy`; pass them at install time (never commit them).
@@ -65,31 +65,56 @@ builder.
 
 ```sh
 # Request your NATS account, S3 bucket+key and Postgres database from
-# easy-vcs/deploy first, then:
-helm install platform ./charts/platform -n agent --create-namespace \
+# easy-vcs/deploy first, then (release name MUST NOT be `platform`: that is the
+# easy-vcs stack's release — use `abcp-platform`):
+helm install abcp-platform ./charts/platform -n worker --create-namespace \
   --set infra.nats.password='<from easy-vcs>' \
   --set infra.s3.accessKey='<from easy-vcs>' \
   --set infra.s3.secretKey='<from easy-vcs>'
 ```
+
+**Release name / namespace gotcha**: deploy into the `worker` namespace (where
+the shared infra lives) and pick a release name that is NOT already used in the
+cluster. `platform` belongs to the `easy-vcs` stack — installing a second
+`platform` release silently UPGRADES theirs. Use `abcp-platform`.
+
+**Object names are ABCP-prefixed** (`abcp-agent`, `abcp-webui`, …) for the same
+reason: Helm does not enforce object ownership across releases, so a
+cluster-unique name (not `agent`, not `agent-webui`) prevents two releases from
+silently overwriting each other's objects. Before installing, run `helm-list`
+and `kubectl get` to confirm the names are free.
+
+### Seeding the model registry (gateway apiKey)
+
+`values.yaml` carries the 7 gateway `providers` but **no apiKey**. Supply the key
+without committing it, either as a non-committed values file (gitignored, e.g.
+`providerKey.yaml` containing only `providerApiKey: <key>`) or via `--set`:
+
+```sh
+# upgrade the running release, keeping the infra secrets already set:
+helm upgrade abcp-platform ./charts/platform -n worker \
+  --reuse-values -f ./providerKey.yaml
+```
+
+**Always pass `--reuse-values`** (or re-`--set` the three infra secrets
+`infra.nats.password` / `infra.s3.accessKey` / `infra.s3.secretKey`): they were
+supplied at install time and are `REPLACE_ME` in `values.yaml`, so a plain
+upgrade would reset them and break the running agent.
+
+### Default model (first-turn readiness)
+
+`agent.defaultModel` (a `provider_id/model_id` text ref) is seeded as the tenant
+`default_model` (create-if-absent, via `AGENT_CONFIG_SEED`) so a **new** session
+has a working model on its first turn. Without it a fresh session errors with
+`no model selected` until one is picked in Config → Providers. It defaults to
+`gateway-text/tal-coding/deepseek-v4.1-flash`; set it empty to disable.
+
+> Needs an agent image built with `AGENT_CONFIG_SEED` support (bump
+> `agent.image.tag` after that lands in `abc-protocol/agent`).
 
 The agent's metadata DB is the shared **Postgres** (`agent.db.backend: pg`), so
 no `/data` volume is used. Image tags are pinned in `values.yaml` and must match
 tags pushed by each repo's `build-image.sh` (`<registry>/abcp/<name>:<tag>`).
-
-### A second, independent stack (`values-standalone2.yaml`)
-
-`charts/platform/values-standalone2.yaml` runs a SECOND agent stack
-(`abcp-agent-s2`) in the same namespace, on the same shared infrastructure but
-with its OWN NATS account / S3 bucket / Postgres database, and its own
-`s2-`-prefixed Selenium:
-
-```sh
-helm install abcp-agent-s2 ./charts/platform -n agent \
-  -f ./charts/platform/values-standalone2.yaml \
-  --set infra.nats.password='<from easy-vcs>' \
-  --set infra.s3.accessKey='<from easy-vcs>' \
-  --set infra.s3.secretKey='<from easy-vcs>'
-```
 
 ### Restricted deploy tools (RBAC)
 
@@ -127,11 +152,11 @@ the k3s `server/manifests/` directory, or `kubectl apply -f` with
 cluster-admin). `generic-device-plugin.yaml` is likewise applied out-of-band.
 
 The desktop / macOS / Windows manifests back the `linux` / `macos` / `windows`
-sandboxes the second stack's worker-extension registers
-(`charts/platform/values-standalone2.yaml`), so their `WORKER_TOKEN` MUST match
-that `sandboxes` list. The macOS / Windows (and Android) manifests need a KVM
-node plus the device plugin; fill `<node-name>` / `<registry-credentials>` before
-applying.
+GUI sandboxes you can register in the worker-extension's `sandboxes`
+(`workerExtension.sandboxes` in `charts/platform/values.yaml`); their
+`WORKER_TOKEN` MUST match that list. The macOS / Windows (and Android) manifests
+need a KVM node plus the device plugin; fill `<node-name>` /
+`<registry-credentials>` before applying.
 
 ## Working agreement (how every repo works now)
 

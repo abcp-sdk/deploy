@@ -55,9 +55,8 @@ spec:
             - { name: web, containerPort: 8006 }
 
           env:
-            # Pre-authorized (zero-touch, no claim). Must match the token the
-            # worker-extension seeds for this sandbox (`sandboxes` in
-            # charts/platform/values-standalone2.yaml).
+            # Pre-authorized (zero-touch, no claim). The worker-extension must
+            # use the SAME token in its `sandboxes` list.
             - { name: WORKER_TOKEN, value: "devwin-token" }
             - { name: VERSION, value: "win11" }
             - { name: EDITION, value: "pro" }

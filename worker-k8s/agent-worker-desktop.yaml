@@ -53,9 +53,8 @@ spec:
             - { name: vnc, containerPort: 5900 }
 
           env:
-            # Pre-authorized (zero-touch, no enrollment): must match the token
-            # the worker-extension seeds for this sandbox (`sandboxes` in
-            # charts/platform/values-standalone2.yaml).
+            # Pre-authorized (zero-touch, no enrollment): the worker-extension
+            # must be configured with the SAME token in its `sandboxes` list.
             - { name: WORKER_TOKEN, value: "devdesktop-token" }
             - { name: WORKER_PORT, value: "48080" }
             - { name: WORKER_WORKSPACE, value: "/workspace" }
