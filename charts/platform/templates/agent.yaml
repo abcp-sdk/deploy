@@ -66,6 +66,10 @@ spec:
             {{- end }}
             - name: PORT
               value: {{ .Values.agent.port | quote }}
+            # Plain HTTP/1.1 liveness/readiness port (kubelet probes cannot
+            # speak the h2c RPC port). Readiness fails when the bus is dead.
+            - name: AGENT_HEALTH_PORT
+              value: {{ .Values.agent.healthPort | quote }}
             # h2c: in-cluster clients (extensions, gateways, the Caddy
             # aggregator) speak cleartext HTTP/2 prior-knowledge.
             - name: HTTP_PROTOCOL
@@ -118,6 +122,24 @@ spec:
             {{- include "abcp-agent.egressProxyEnv" . | nindent 12 }}
           ports:
             - { containerPort: {{ .Values.agent.port }}, protocol: TCP }
+            {{- if gt (int .Values.agent.healthPort) 0 }}
+            - { containerPort: {{ .Values.agent.healthPort }}, protocol: TCP, name: health }
+            {{- end }}
+          {{- if gt (int .Values.agent.healthPort) 0 }}
+          # Liveness: the process is up. Readiness: the bus is live AND the
+          # server finished wiring; a zombie whose NATS connection died fails
+          # readiness (and, with the exit-on-close supervisor, restarts).
+          livenessProbe:
+            httpGet: { path: /health, port: health }
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /ready, port: health }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          {{- end }}
           resources:
             {{- toYaml .Values.agent.resources | nindent 12 }}
           {{- if and .Values.persistence.enabled (ne .Values.agent.db.backend "pg") }}

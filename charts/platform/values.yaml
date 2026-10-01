@@ -80,8 +80,10 @@ providerApiKey: ""
 agent:
   image:
     repository: git.agent.svc.cluster.local/abcp/agent
-    tag: "20260927103748"
+    tag: "20261001095724"
     pullPolicy: IfNotPresent
+  # Plain HTTP/1.1 liveness/readiness port (separate from the h2c RPC port).
+  healthPort: 8081
   port: 8080
   service:
     # In-cluster h2c endpoint. The edge maps the public `standalone-agent` host
