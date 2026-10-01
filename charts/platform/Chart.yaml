@@ -1,11 +1,12 @@
 apiVersion: v2
 name: abcp-platform
 description: >-
-  The ABCP agent platform as one Helm release: agent (h2c, in-process bundled
-  extension) + webui (Caddy same-origin aggregator) + playwright-extension +
-  a fixed easyworker + worker-extension. Shared infrastructure (NATS, S3/Garage,
-  Forgejo, Selenium, buildkitd, Postgres) lives in the sibling `infra` chart and
-  is consumed here purely over Service DNS.
+  The ABCP standalone agent stack as one Helm release: agent (h2c, in-process
+  bundled extension) + webui (Caddy same-origin aggregator) + playwright
+  extension + a fixed easyworker + worker-extension + a self-deployed Selenium
+  node. Shared infrastructure (NATS / Garage S3 / Postgres) is consumed from the
+  `worker` namespace (owned by easy-vcs/deploy) purely over Service DNS; this
+  chart deploys no shared infra, no Forgejo and no buildkitd.
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

@@ -71,6 +71,11 @@ selenium:
 # empty to configure providers via the UI / AdminService.
 providers: ""
 
+# When set, injected as the `apiKey` of every provider above that does not carry
+# its own. Lets the key stay out of git: pass it at install time
+# (`--set providerApiKey=...`).
+providerApiKey: ""
+
 # ---- agent (h2c) ----
 agent:
   image:

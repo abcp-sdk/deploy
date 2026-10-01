@@ -76,6 +76,22 @@ default
   value: {{ .Values.infra.s3.prefix | quote }}
 {{- end -}}
 
+{{/* AGENT_PROVIDER_SEED JSON. `.Values.providers` is passed through; when
+     `.Values.providerApiKey` is set it is injected into every provider that does
+     not already carry its own `apiKey` (so the key need not be committed). */}}
+{{- define "abcp-agent.providersSeed" -}}
+{{- $providers := .Values.providers -}}
+{{- if and $providers .Values.providerApiKey -}}
+{{- $out := list -}}
+{{- range $providers -}}
+{{- $out = append $out (merge (deepCopy .) (dict "apiKey" $.Values.providerApiKey)) -}}
+{{- end -}}
+{{- $out | toJson -}}
+{{- else -}}
+{{- $providers | toJson -}}
+{{- end -}}
+{{- end -}}
+
 {{/* no_proxy must cover in-cluster DNS + the registries so proxied egress does
      not hijack Service DNS or the Forgejo registry host. */}}
 {{- define "abcp-agent.noProxy" -}}
