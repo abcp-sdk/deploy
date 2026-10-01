@@ -60,9 +60,9 @@ An in-cluster restricted deploy tool (e.g. `helm-deploy`) renders a **whitelist*
 of namespaced kinds and filters RBAC / cluster-scoped / privileged objects. The
 `platform` chart ships only a namespaced `ServiceAccount` (allowed), so it applies
 as-is. The standalone worker manifests under `worker-k8s/` are NOT a Helm release
-and include a **privileged** device plugin
-(`generic-device-plugin.yaml`) — apply those out-of-band with the appropriate
-context.
+and include a **privileged** device plugin (`generic-device-plugin.yaml`) and a
+**cluster-scoped** local-path provisioner (`workspace-local-path.yaml`) — apply
+those out-of-band with the appropriate context (see below).
 
 ## NATS isolation (do not skip)
 
@@ -78,8 +78,18 @@ same broker MUST use a **distinct account** (`agent` / `workspace` / `class` in
 Plain manifests (not Helm) for long-lived `agent-worker` sandboxes: linux
 (`agent-worker.yaml`), macOS + Xcode, Windows, Android emulator, desktop
 (noVNC), plus the KVM device plugin. The VM/Android manifests request
-`squat.ai/kvm` while staying `privileged: false`. Replace `<registry>`,
-`<node-name>` and `<registry-credentials>` before applying.
+`squat.ai/kvm` while staying `privileged: false`. Replace `<node-name>` and
+`<registry-credentials>` before applying (the image refs already point at the
+in-cluster registry).
+
+`workspace-local-path.yaml` is the **cluster-scoped** `workspace-local`
+StorageClass plus its own `rancher/local-path-provisioner` (host path
+`/home/develop/PVC`) — the default `persistence.storageClass` the `infra` and
+`platform` charts reference. It contains a `Namespace` / `ClusterRole` /
+`ClusterRoleBinding` / `StorageClass`, so a restricted deploy tool (which filters
+RBAC / cluster-scoped kinds) CANNOT apply it: apply it out-of-band (drop it into
+the k3s `server/manifests/` directory, or `kubectl apply -f` with
+cluster-admin). `generic-device-plugin.yaml` is likewise applied out-of-band.
 
 ## Working agreement (how every repo works now)
 
