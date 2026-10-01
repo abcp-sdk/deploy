@@ -54,6 +54,19 @@ helm install platform ./charts/platform -n agent
 Image tags are pinned in each chart's `values.yaml` and must match tags pushed
 by each repo's `build-image.sh` (`<registry>/abcp/<name>:<tag>`).
 
+### A second, independent environment (`values-standalone2.yaml`)
+
+Each chart ships an extra values file for a SECOND, self-contained environment
+(`abcp-agent-s2` + `infra-s2`), co-located in the `agent` namespace but with its
+own NATS/S3/Postgres/Selenium and PVC-backed state (`s2-` prefix). Unlike the
+original, Forgejo and buildkitd are disabled and the agent's metadata DB is
+Postgres.
+
+```sh
+helm install infra-s2    ./charts/infra    -n agent -f ./charts/infra/values-standalone2.yaml
+helm install abcp-agent-s2 ./charts/platform -n agent -f ./charts/platform/values-standalone2.yaml
+```
+
 ### Restricted deploy tools (RBAC)
 
 An in-cluster restricted deploy tool (e.g. `helm-deploy`) renders a **whitelist**
