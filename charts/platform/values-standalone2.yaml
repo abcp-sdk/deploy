@@ -53,7 +53,7 @@ agent:
   healthPort: 8081
   port: 8080
   service:
-    name: standalone-agent
+    name: abcp-agent
     type: ClusterIP
   corsOrigin: "*"
   disabledTools: ""
@@ -80,8 +80,10 @@ webui:
     tag: "20260929162000"
     pullPolicy: IfNotPresent
   port: 8080
+  deployment:
+    name: abcp-webui
   service:
-    name: agent
+    name: abcp-webui
     type: ClusterIP
   resources:
     requests: { cpu: 20m, memory: 32Mi }
