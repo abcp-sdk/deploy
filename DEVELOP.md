@@ -91,6 +91,19 @@ subset into the sandbox Pod **and** runs a one-shot setup job that writes the
 file-configured tools' configs. In an interactive container you do the same
 thing by hand.
 
+**Ownership (who configures the package sources):**
+
+- **easy-vcs** — its `easyops` bootstrap configures the package sources for
+  sandboxes *easyops creates*. Not ABCP's concern.
+- **abc-protocol** — ABCP's own `agent-worker` sandboxes (the worker-extension
+  drives a fixed easyworker) get their image / runtime config from
+  **`abc-protocol/worker`** (`agent-toolchain/`, `sandbox-images/`). That is
+  where an ABCP-side mirror config would go — **not** in this deploy repo.
+- **This repo** (`abc-protocol/deploy`) — the `platform` chart deploys no
+  package-manager config at all; it only wires the agent + extensions.
+- The **shared `artifact`** itself (incl. its git-proxy fix) is transparent:
+  both stacks benefit with no change.
+
 ### Environment variables (the "env half")
 
 ```sh
