@@ -55,9 +55,10 @@ spec:
             - { name: web, containerPort: 8006 }
 
           env:
-            # Set a value to pre-authorize the worker (zero-touch, no claim);
-            # leave empty for the default random-code enrollment flow.
-            - { name: WORKER_TOKEN, value: "" }
+            # Pre-authorized (zero-touch, no claim). Must match the token the
+            # worker-extension seeds for this sandbox (`sandboxes` in
+            # charts/platform/values-standalone2.yaml).
+            - { name: WORKER_TOKEN, value: "devwin-token" }
             - { name: VERSION, value: "win11" }
             - { name: EDITION, value: "pro" }
             - { name: CPU_CORES, value: "8" }        # guest vCPU count

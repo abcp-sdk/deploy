@@ -53,7 +53,9 @@ spec:
 
           env:
             # Non-empty => the guest worker starts pre-authorized (no claim).
-            - { name: WORKER_TOKEN, value: "" }
+            # Must match the token the worker-extension seeds for this sandbox
+            # (`sandboxes` in charts/platform/values-standalone2.yaml).
+            - { name: WORKER_TOKEN, value: "devmac-token" }
             - { name: VERSION, value: "15" }
             # macOS wants a power-of-two vCPU count (2/4/8/16/...).
             # 4 is the stable default for Sequoia on x86_64 KVM hosts.
