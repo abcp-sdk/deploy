@@ -5,9 +5,9 @@
 The chart is a plain Helm v3 chart. Render it locally before opening an MR:
 
 ```sh
-helm template platform ./charts/platform -n agent
+helm template abcp-platform ./charts/platform -n worker
 # the second stack:
-helm template abcp-agent-s2 ./charts/platform -n agent \
+helm template abcp-agent-s2 ./charts/platform -n worker \
   -f ./charts/platform/values-standalone2.yaml
 ```
 
@@ -20,6 +20,10 @@ There is no cluster access requirement to render. `helm lint` is optional.
   self-deployed Selenium node. It does NOT deploy NATS / Garage / Postgres —
   those are the SHARED `worker`-namespace services owned by `easy-vcs/deploy`
   and consumed over Service DNS.
+- **Release name**: install as `abcp-platform`, NOT `platform` — `platform` is
+  the easy-vcs stack's release name in this cluster, and Helm would upgrade it
+  in place. The deploy tool (`helm-deploy`) also manages other tenants'
+  releases, so always check `helm-list` before choosing a name.
 - **No Forgejo, no buildkitd.** The standalone agent needs neither. Do not
   re-add them.
 - **Namespace**: `.Values.namespaceOverride | default .Release.Namespace`. Every

@@ -65,12 +65,18 @@ builder.
 
 ```sh
 # Request your NATS account, S3 bucket+key and Postgres database from
-# easy-vcs/deploy first, then:
-helm install platform ./charts/platform -n agent --create-namespace \
+# easy-vcs/deploy first, then (release name MUST NOT be `platform`: that is the
+# easy-vcs stack's release — use `abcp-platform`):
+helm install abcp-platform ./charts/platform -n worker --create-namespace \
   --set infra.nats.password='<from easy-vcs>' \
   --set infra.s3.accessKey='<from easy-vcs>' \
   --set infra.s3.secretKey='<from easy-vcs>'
 ```
+
+**Release name / namespace gotcha**: deploy into the `worker` namespace (where
+the shared infra lives) and pick a release name that is NOT already used in the
+cluster. `platform` belongs to the `easy-vcs` stack — installing a second
+`platform` release silently UPGRADES theirs. Use `abcp-platform`.
 
 The agent's metadata DB is the shared **Postgres** (`agent.db.backend: pg`), so
 no `/data` volume is used. Image tags are pinned in `values.yaml` and must match
@@ -78,18 +84,22 @@ tags pushed by each repo's `build-image.sh` (`<registry>/abcp/<name>:<tag>`).
 
 ### A second, independent stack (`values-standalone2.yaml`)
 
-`charts/platform/values-standalone2.yaml` runs a SECOND agent stack
-(`abcp-agent-s2`) in the same namespace, on the same shared infrastructure but
-with its OWN NATS account / S3 bucket / Postgres database, and its own
-`s2-`-prefixed Selenium:
+`charts/platform/values-standalone2.yaml` defines a SECOND, independent stack
+with its OWN NATS account / S3 bucket / Postgres database and its own
+`s2-`-prefixed Selenium (Selenium is self-deployed, so two stacks need distinct
+Service names):
 
 ```sh
-helm install abcp-agent-s2 ./charts/platform -n agent \
+helm install abcp-agent-s2 ./charts/platform -n worker \
   -f ./charts/platform/values-standalone2.yaml \
   --set infra.nats.password='<from easy-vcs>' \
   --set infra.s3.accessKey='<from easy-vcs>' \
   --set infra.s3.secretKey='<from easy-vcs>'
 ```
+
+> **Not currently provisioned.** `easy-vcs/deploy` has only opened ONE ABCP
+> tenant (`abcp-agent`); there is no `abcp-agent-s2` account / bucket / database
+> yet. Request those before running the second stack.
 
 ### Restricted deploy tools (RBAC)
 
