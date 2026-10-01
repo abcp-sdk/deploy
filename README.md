@@ -1,7 +1,7 @@
 # abc-protocol/deploy
 
 The **deployment home of the ABCP agent** (`abc-protocol`): it holds the Helm
-charts that wire the agent and its extensions together, plus the standalone k8s
+chart that wires the agent and its extensions together, plus the standalone k8s
 manifests for the non-Helm workloads. **Each component's code (and its
 `Dockerfile` / `build-image.sh`) lives in its OWN repository.** This repo is
 deploy-only: no application code, no image build.
@@ -17,14 +17,39 @@ are explicitly out of scope here.
 
 ```
 deploy/
-├── charts/
-│   ├── infra/       # shared infrastructure (NATS / Garage S3 / Forgejo / Selenium / Postgres / buildkitd)
-│   └── platform/    # the agent stack (agent + webui + playwright + fixed worker + worker-extension)
-├── worker-k8s/      # standalone agent-worker deployments (linux / macOS / Windows / Android / desktop + KVM device plugin)
+├── charts/platform/   # the standalone agent stack
+├── worker-k8s/        # standalone agent-worker deployments (linux / macOS / Windows / Android / desktop + KVM device plugin)
 └── README.md
 ```
 
-The `platform` release consumes the `infra` release over Service DNS.
+## Shared infrastructure (do NOT deploy your own)
+
+NATS, Garage S3 and Postgres are **shared services in the `worker` namespace**,
+deployed and operated by `easy-vcs/deploy`. The `platform` chart consumes them
+over Service DNS and **never deploys them itself**:
+
+| Service | Endpoint |
+|---|---|
+| NATS (JetStream) | `nats.worker.svc.cluster.local:4222` |
+| Postgres | `postgres.worker.svc.cluster.local:80` (→5432) |
+| Garage S3 | `http://garage.worker.svc.cluster.local:80` (region `garage`, path-style) |
+
+Because the services are shared, the account / bucket / database names MUST be
+ABCP-specific (distinct from every other stack on the same services):
+
+| Knob | Default stack | Second stack (`-s2`) |
+|---|---|---|
+| NATS account (user) | `abcp-agent` | `abcp-agent-s2` |
+| S3 bucket | `abcp-agent` | `abcp-agent-s2` |
+| Postgres database | `abcp_agent` | `abcp_agent_s2` |
+
+The NATS **password** and S3 **access/secret key** are issued by
+`easy-vcs/deploy`; pass them at install time (never commit them).
+
+**Selenium** is NOT shared — the `platform` chart deploys its own Selenium node
+(the `playwright-extension` drives it over CDP). **Forgejo and buildkitd are not
+deployed at all**: the standalone agent needs neither a git server nor an image
+builder.
 
 ## Components (each image built from its OWN repository)
 
@@ -32,39 +57,38 @@ The `platform` release consumes the `infra` release over Service DNS.
 |---|---|---|
 | `agent` | `abc-protocol/agent` | session/model/turn engine (h2c); loads the in-process bundled extension |
 | `webui` (agent-webui) | `abc-protocol/webui` | SPA + same-origin Caddy aggregator (`/agent.v1.*` → agent h2c) |
-| `playwright-extension` | `abc-protocol/playwright-extension` | browser-automation tools (drives infra Selenium over CDP) |
+| `playwright-extension` | `abc-protocol/playwright-extension` | browser-automation tools (drives the in-chart Selenium over CDP) |
 | `worker-extension` | `abc-protocol/worker-extension` | run commands / read-write files in ONE fixed easyworker |
 | `agent-worker` | `abc-protocol/worker` | the easyworker binary; also the sandbox worker injected at launch |
-
-## Prerequisites
-
-- A cluster with a node that can run `hostPath` volumes (the dev cluster) — or
-  set the chart to `persistence.mode: pvc` / `agent.db.backend: pg`.
 
 ## Install
 
 ```sh
-# 1) shared infrastructure (NATS + Garage + Forgejo + Selenium + Postgres + buildkitd)
-helm install infra   ./charts/infra   -n agent --create-namespace
-
-# 2) the standalone agent stack
-helm install platform ./charts/platform -n agent
+# Request your NATS account, S3 bucket+key and Postgres database from
+# easy-vcs/deploy first, then:
+helm install platform ./charts/platform -n agent --create-namespace \
+  --set infra.nats.password='<from easy-vcs>' \
+  --set infra.s3.accessKey='<from easy-vcs>' \
+  --set infra.s3.secretKey='<from easy-vcs>'
 ```
 
-Image tags are pinned in each chart's `values.yaml` and must match tags pushed
-by each repo's `build-image.sh` (`<registry>/abcp/<name>:<tag>`).
+The agent's metadata DB is the shared **Postgres** (`agent.db.backend: pg`), so
+no `/data` volume is used. Image tags are pinned in `values.yaml` and must match
+tags pushed by each repo's `build-image.sh` (`<registry>/abcp/<name>:<tag>`).
 
-### A second, independent environment (`values-standalone2.yaml`)
+### A second, independent stack (`values-standalone2.yaml`)
 
-Each chart ships an extra values file for a SECOND, self-contained environment
-(`abcp-agent-s2` + `infra-s2`), co-located in the `agent` namespace but with its
-own NATS/S3/Postgres/Selenium and PVC-backed state (`s2-` prefix). Unlike the
-original, Forgejo and buildkitd are disabled and the agent's metadata DB is
-Postgres.
+`charts/platform/values-standalone2.yaml` runs a SECOND agent stack
+(`abcp-agent-s2`) in the same namespace, on the same shared infrastructure but
+with its OWN NATS account / S3 bucket / Postgres database, and its own
+`s2-`-prefixed Selenium:
 
 ```sh
-helm install infra-s2    ./charts/infra    -n agent -f ./charts/infra/values-standalone2.yaml
-helm install abcp-agent-s2 ./charts/platform -n agent -f ./charts/platform/values-standalone2.yaml
+helm install abcp-agent-s2 ./charts/platform -n agent \
+  -f ./charts/platform/values-standalone2.yaml \
+  --set infra.nats.password='<from easy-vcs>' \
+  --set infra.s3.accessKey='<from easy-vcs>' \
+  --set infra.s3.secretKey='<from easy-vcs>'
 ```
 
 ### Restricted deploy tools (RBAC)
@@ -79,12 +103,11 @@ those out-of-band with the appropriate context (see below).
 
 ## NATS isolation (do not skip)
 
-The platform stack uses the `agent` NATS account. Any other agent stack in the
-same broker MUST use a **distinct account** (`agent` / `workspace` / `class` in
-`charts/infra/values.yaml`): two agents sharing an account collide on the global
+The shared NATS broker serves several stacks. Each agent stack MUST use a
+**distinct account**: two agents sharing an account collide on the global
 `abc.discover` subject, the `abc-presence` KV keys and the fixed `ABC_MAILBOX` /
-`ABC_EVENTS` / `ABC_DLQ` streams. Add an account with `nats.extra` (each
-`{name,user,password}`).
+`ABC_EVENTS` / `ABC_DLQ` streams. ABCP's account (`abcp-agent`) is opened on the
+shared broker by `easy-vcs/deploy`; the password is supplied at install time.
 
 ## Standalone worker deployments (`worker-k8s/`)
 
@@ -97,8 +120,7 @@ in-cluster registry).
 
 `workspace-local-path.yaml` is the **cluster-scoped** `workspace-local`
 StorageClass plus its own `rancher/local-path-provisioner` (host path
-`/home/develop/PVC`) — the default `persistence.storageClass` the `infra` and
-`platform` charts reference. It contains a `Namespace` / `ClusterRole` /
+`/home/develop/PVC`). It contains a `Namespace` / `ClusterRole` /
 `ClusterRoleBinding` / `StorageClass`, so a restricted deploy tool (which filters
 RBAC / cluster-scoped kinds) CANNOT apply it: apply it out-of-band (drop it into
 the k3s `server/manifests/` directory, or `kubectl apply -f` with
@@ -123,4 +145,3 @@ To change a deployment:
 `build-image.sh` (per component repo) and `agent-toolchain/` (sandbox base
 images, in `abc-protocol/worker`) stay with their code — they build artifacts,
 they do not deploy.
-

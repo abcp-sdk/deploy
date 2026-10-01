@@ -35,6 +35,16 @@ default
 {{- printf "http://%s.%s.svc.cluster.local:80" .Values.worker.service.name (include "abcp-agent.namespace" .) -}}
 {{- end -}}
 
+{{/* Selenium WebDriver URL for the playwright extension: an explicit
+     `.Values.selenium.url` wins; otherwise the in-chart Selenium Service. */}}
+{{- define "abcp-agent.seleniumUrl" -}}
+{{- if .Values.selenium.url -}}
+{{- .Values.selenium.url -}}
+{{- else -}}
+{{- printf "http://%s.%s.svc.cluster.local:%v" .Values.selenium.service.name (include "abcp-agent.namespace" .) .Values.selenium.port -}}
+{{- end -}}
+{{- end -}}
+
 {{/* The worker extension's `sandboxes` JSON list. Explicit
      `workerExtension.sandboxes` wins; otherwise derive ONE entry from the
      bundled `worker` (name "default"). */}}

@@ -96,7 +96,7 @@ spec:
             {{- if or .Values.playwright.enabled .Values.workerExtension.enabled .Values.bundled.seedTenant }}
             - name: AGENT_EXT_CONFIG_SEED
               value: {{ list
-                (dict "tenant" .Values.playwright.seedTenant "extId" "playwright" "name" "selenium-url" "value" .Values.infra.seleniumUrl)
+                (dict "tenant" .Values.playwright.seedTenant "extId" "playwright" "name" "selenium-url" "value" (include "abcp-agent.seleniumUrl" .))
                 (dict "tenant" .Values.workerExtension.seedTenant "extId" "worker" "name" "sandboxes" "value" (include "abcp-agent.workerSandboxes" .))
                 (dict "tenant" .Values.bundled.seedTenant "extId" "bundled" "name" "model.text" "value" .Values.bundled.model.text)
                 (dict "tenant" .Values.bundled.seedTenant "extId" "bundled" "name" "model.image" "value" .Values.bundled.model.image)

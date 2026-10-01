@@ -1,0 +1,67 @@
+{{- if .Values.selenium.enabled }}
+# Selenium WebDriver — deployed by THIS chart (not part of the shared infra).
+# The playwright extension drives it over CDP; screenshots flow back through the
+# agent's file.ingest RPC as durable file:<code>.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "abcp-agent.prefix" . }}{{ .Values.selenium.service.name }}
+  namespace: {{ include "abcp-agent.namespace" . }}
+  labels:
+    {{- include "abcp-agent.labels" . | nindent 4 }}
+    app: {{ include "abcp-agent.prefix" . }}{{ .Values.selenium.service.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "abcp-agent.prefix" . }}{{ .Values.selenium.service.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "abcp-agent.labels" . | nindent 8 }}
+        app: {{ include "abcp-agent.prefix" . }}{{ .Values.selenium.service.name }}
+    spec:
+      securityContext: {}
+      containers:
+        - name: selenium
+          image: {{ .Values.selenium.image }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: SE_NODE_MAX_SESSIONS, value: "4" }
+            - { name: SE_NODE_OVERRIDE_MAX_SESSIONS, value: "true" }
+            - { name: SE_NODE_SESSION_TIMEOUT, value: "1800" }
+            - { name: SE_ENABLE_MANAGED_DOWNLOADS, value: "true" }
+          ports:
+            - { name: http, containerPort: {{ .Values.selenium.port }}, protocol: TCP }
+          resources:
+            {{- toYaml .Values.selenium.resources | nindent 12 }}
+          volumeMounts:
+            - { name: dshm, mountPath: /dev/shm }
+            - { name: downloads, mountPath: /home/seluser/Downloads }
+          readinessProbe:
+            httpGet: { path: /wd/hub/status, port: {{ .Values.selenium.port }} }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+        # Ephemeral: browser downloads do not need to survive a pod restart.
+        - name: downloads
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "abcp-agent.prefix" . }}{{ .Values.selenium.service.name }}
+  namespace: {{ include "abcp-agent.namespace" . }}
+  labels:
+    {{- include "abcp-agent.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ include "abcp-agent.prefix" . }}{{ .Values.selenium.service.name }}
+  ports:
+    - { name: http, port: {{ .Values.selenium.port }}, targetPort: {{ .Values.selenium.port }} }
+{{- end }}
