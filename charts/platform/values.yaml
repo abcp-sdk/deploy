@@ -163,6 +163,10 @@ agent:
     adminToken: "dev-admin-token"
     bootstrapTenant: "default"
     bootstrapToken: "devtenanttoken"
+  # Tenant `default_model` (a `provider_id/model_id` text ref), seeded
+  # create-if-absent into every tenant (see `bundled.seedTenant`) so a NEW
+  # session works on its first turn. Empty = don't seed (pick a model in the UI).
+  defaultModel: "gateway-text/tal-coding/deepseek-v4.1-flash"
   resources:
     requests: { cpu: 100m, memory: 128Mi }
     limits: { cpu: "1", memory: 1Gi }

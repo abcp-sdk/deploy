@@ -118,6 +118,14 @@ spec:
             - name: AGENT_PROVIDER_SEED
               value: {{ include "abcp-agent.providersSeed" . | quote }}
             {{- end }}
+            {{- if .Values.agent.defaultModel }}
+            # Pin the tenant `default_model` (create-if-absent) so a NEW session
+            # has a working model on its FIRST turn. Without it a fresh session
+            # errors with `no model selected` until one is chosen in the UI.
+            # Requires an agent image that supports AGENT_CONFIG_SEED.
+            - name: AGENT_CONFIG_SEED
+              value: {{ list (dict "tenant" .Values.bundled.seedTenant "key" "default_model" "value" .Values.agent.defaultModel) | toJson | quote }}
+            {{- end }}
             {{- include "abcp-agent.objectStoreEnv" . | nindent 12 }}
             {{- include "abcp-agent.egressProxyEnv" . | nindent 12 }}
           ports:
