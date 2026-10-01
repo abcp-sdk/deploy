@@ -54,6 +54,18 @@ There is no cluster access requirement to render. `helm lint` is optional.
   default release path (see README). The platform chart ships only a namespaced
   ServiceAccount.
 
+## Renaming an object leaves an orphan
+
+Helm only tracks the objects in the CURRENT revision; renaming a Deployment/
+Service (or rolling back past a rename) leaves the OLD object running in the
+cluster, owned by nobody. It keeps answering on its Service DNS, which is
+confusing. After any rename, check and delete the stale objects:
+
+```sh
+kubectl -n worker get deploy,svc -l app.kubernetes.io/name=abcp-agent
+# delete any name that is not in the current `helm get manifest abcp-platform`
+```
+
 ## Migrating a chart change back to a code repo
 
 If a chart template still references a component's internals, prefer fixing the
