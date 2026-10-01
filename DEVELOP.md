@@ -35,6 +35,15 @@ There is no cluster access requirement to render. `helm lint` is optional.
   `abcp-agent.seleniumUrl` helper — an explicit `.Values.selenium.url` wins,
   otherwise the in-chart Service. Set `selenium.enabled=false` only if you point
   `selenium.url` at an external node.
+- **No committed credentials**: the shared NATS password / S3 keys and the
+  gateway `providerApiKey` are placeholders (`REPLACE_ME`) passed at install
+  time. `providerApiKey` is injected by the `abcp-agent.providersSeed` helper
+  into every provider in `.Values.providers` that has no `apiKey` of its own.
+- **GUI worker endpoints**: `values-standalone2.yaml`'s `workerExtension.sandboxes`
+  points the linux/macOS/windows entries at the standalone manifests in
+  `worker-k8s/`, which live in the `worker` namespace
+  (`agent-worker-desktop` / `agent-worker-macos` / `agent-worker-windows`).
+  Keep those in sync if the manifests move.
 - **Restricted deploy tools**: keep RBAC and privileged/hostPath kinds out of the
   default release path (see README). The platform chart ships only a namespaced
   ServiceAccount.
