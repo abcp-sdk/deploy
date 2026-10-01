@@ -1,0 +1,4 @@
+# Local, non-committed values that hold real credentials (never commit these).
+providerKey.yaml
+*secrets*.yaml
+*.local.yaml
