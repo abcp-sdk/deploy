@@ -72,6 +72,130 @@ kubectl -n worker get deploy,svc -l app.kubernetes.io/name=abcp-agent
 
 ## Migrating a chart change back to a code repo
 
+## Package installs: use the in-cluster `artifact` mirror (do not hit the public internet)
+
+Every package manager in a dev container / sandbox should fetch through the
+shared **`artifact`** pull-through registry instead of the public internet. It
+is an easy-vcs service in the `worker` namespace:
+
+```
+ARTIFACT=http://artifact.worker.svc.cluster.local
+```
+
+(Plain HTTP, anonymous **pull**. On a cache miss artifact fetches the upstream
+once — through the cluster proxy — and caches it; later installs are local.)
+
+This mirrors what `easy-vcs/easyops` does for freshly created sandboxes
+(`internal/opssvc/upstream.go` + `bootstrap.go`): it injects a standard-env
+subset into the sandbox Pod **and** runs a one-shot setup job that writes the
+file-configured tools' configs. In an interactive container you do the same
+thing by hand.
+
+### Environment variables (the "env half")
+
+```sh
+export ARTIFACT_UPSTREAM=http://artifact.worker.svc.cluster.local
+export PIP_INDEX_URL=$ARTIFACT_UPSTREAM/artifacts/pypi/simple/
+export PIP_TRUSTED_HOST=artifact.worker.svc.cluster.local
+export NPM_CONFIG_REGISTRY=$ARTIFACT_UPSTREAM/artifacts/npm/
+export GOPROXY=$ARTIFACT_UPSTREAM/artifacts/go
+export GOSUMDB=off
+export HEX_MIRROR=$ARTIFACT_UPSTREAM/artifacts/hex/
+export PUB_HOSTED_URL=$ARTIFACT_UPSTREAM/artifacts/pub
+```
+
+### Config files (the "file half")
+
+`easyops` writes these with a single idempotent script; run the equivalent
+yourself (all writes overwrite, so re-running is safe). `$A` is the base URL:
+
+```sh
+A=http://artifact.worker.svc.cluster.local
+
+# apt (Debian): artifact-only, drop the image's own sources
+mkdir -p /etc/apt/sources.list.d
+rm -f /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources
+echo "deb [trusted=yes] $A/artifacts/debian/debian trixie main" \
+  > /etc/apt/sources.list.d/artifact.list
+
+# apk (Alpine 3.24)
+echo "$A/artifacts/apk/v3.24/main" > /etc/apk/repositories
+
+# maven (java)
+mkdir -p ~/.m2 && printf '<settings><mirrors><mirror><id>artifact</id><mirrorOf>*</mirrorOf><url>%s/artifacts/maven/</url></mirror></mirrors></settings>' "$A" > ~/.m2/settings.xml
+
+# gradle (allowInsecureProtocol is REQUIRED: Gradle 7+ rejects plain-HTTP repos)
+mkdir -p ~/.gradle && printf 'allprojects{repositories{clear();maven{url "%s/artifacts/maven/"; allowInsecureProtocol = true}}}' "$A" > ~/.gradle/init.gradle
+
+# cargo (rust)
+mkdir -p ~/.cargo && printf '[source.crates-io]\nreplace-with="artifact"\n[source.artifact]\nregistry="sparse+%s/artifacts/cargo/index/"\n' "$A" > ~/.cargo/config.toml
+
+# rubygems
+printf -- '---\n:sources:\n- %s/artifacts/rubygems/\n' "$A" > ~/.gemrc
+
+# composer
+mkdir -p ~/.composer && printf '{"repositories":{"packagist":{"type":"composer","url":"%s/artifacts/composer/"}}}' "$A" > ~/.composer/config.json
+
+# nuget
+mkdir -p ~/.nuget/NuGet && printf '<?xml version="1.0"?><configuration><packageSources><clear/><add key="artifact" value="%s/artifacts/nuget/v3/index.json"/></packageSources></configuration>' "$A" > ~/.nuget/NuGet/NuGet.Config
+
+# conda
+printf 'channels:\n  - %s/artifacts/conda/pkgs/main\n' "$A" > ~/.condarc
+
+# git (CLI): rewrite github.com clones to the artifact mirror
+git config --global url."$A/artifacts/git/github.com/".insteadOf https://github.com/
+
+# Swift Package Manager: SPM uses libgit2 and IGNORES git's insteadOf, so it
+# needs its own native mirror file (an OBJECT, no wildcards):
+mkdir -p ~/.swiftpm/configuration
+cat > ~/.swiftpm/configuration/mirrors.json <<JSON
+{ "version": 1, "object": [
+  { "original": "https://github.com/apple/swift-argument-parser.git",
+    "mirror":   "$A/artifacts/git/github.com/apple/swift-argument-parser.git" }
+] }
+JSON
+```
+
+Per-protocol client setup (one-off commands, hosted-vs-upstream notes):
+`easy-vcs/artifact` → `CLIENTS.md`.
+
+### Verified in-cluster (2026-10-01, artifact `20261001-2`)
+
+| Ecosystem | Config | Result |
+|---|---|---|
+| npm | `NPM_CONFIG_REGISTRY=$A/artifacts/npm/` | ✅ `npm install left-pad` |
+| pub (Dart) | `PUB_HOSTED_URL=$A/artifacts/pub` | ✅ `dart pub get` resolved 11 deps |
+| pip | `PIP_INDEX_URL=$A/artifacts/pypi/simple/` + `PIP_TRUSTED_HOST=…` | ✅ index 200 |
+| Go | `GOPROXY=$A/artifacts/go` + `GOSUMDB=off` | ✅ 200 |
+| Gradle/Maven | `$A/artifacts/maven/` + `allowInsecureProtocol = true` | ✅ resolves |
+| apt/Debian | `deb [trusted=yes] $A/artifacts/debian/debian trixie main` | ✅ `apt-get update` + install |
+| git (large repos) | `$A/artifacts/git/github.com/…` | ✅ `apple/swift-log`, `apple/swift-nio` clone |
+| SwiftPM | `~/.swiftpm/configuration/mirrors.json` | ✅ `swift package resolve` via artifact |
+
+**Gotchas:**
+
+- **Gradle** rejects plain-HTTP repositories unless you opt in — the
+  `init.gradle` above sets `allowInsecureProtocol = true` (without it:
+  "Using insecure protocols with repositories … is unsupported").
+- **Swift Package Manager** does NOT honor `git config url.<base>.insteadOf`
+  (SPM resolves with libgit2, not the `git` CLI); use the `mirrors.json` above.
+  The `easy-vcs/easyops` bootstrap pre-seeds the common `apple/*` mirrors.
+  (artifact `20261001-2` fixed its git proxy for large/many-ref repos — earlier
+  `apple/swift-log` clones failed with `bad line length character`.)
+- The mirror is **shared** and plain HTTP: `PIP_TRUSTED_HOST` / gradle's
+  `allowInsecureProtocol` / apt's `[trusted=yes]` are the opt-ins for that.
+
+### Verify it works
+
+```sh
+curl -s -o /dev/null -w '%{http_code}\n' http://artifact.worker.svc.cluster.local/healthz          # 200
+curl -s -o /dev/null -w '%{http_code}\n' http://artifact.worker.svc.cluster.local/artifacts/npm/left-pad
+```
+
+> The mirror is **shared** — pull is anonymous; a **push** needs a write-level
+> token (never hard-code one). Point each repo at it so CI and interactive
+> containers stop re-downloading the same packages from the public internet.
+
 If a chart template still references a component's internals, prefer fixing the
 template here over re-adding k8s/ to the code repo. The code repo's README
 "Deploy" section should point at this repo.
