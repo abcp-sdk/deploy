@@ -116,7 +116,7 @@ spec:
             # UI edit always wins). This gives a fresh standalone deployment a
             # working model registry without a UI round-trip.
             - name: AGENT_PROVIDER_SEED
-              value: {{ .Values.providers | toJson | quote }}
+              value: {{ include "abcp-agent.providersSeed" . | quote }}
             {{- end }}
             {{- include "abcp-agent.objectStoreEnv" . | nindent 12 }}
             {{- include "abcp-agent.egressProxyEnv" . | nindent 12 }}
