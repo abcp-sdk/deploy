@@ -86,9 +86,11 @@ agent:
   healthPort: 8081
   port: 8080
   service:
-    # In-cluster h2c endpoint. The edge maps the public `standalone-agent` host
-    # here; extensions/other backends dial it over h2c directly.
-    name: standalone-agent
+    # In-cluster h2c endpoint; extensions/other backends dial it over h2c
+    # directly. ABCP-prefixed so it does not collide with another stack's
+    # objects in the same cluster (Helm does not enforce object ownership
+    # across releases).
+    name: abcp-agent
     type: ClusterIP
   corsOrigin: "*"
   # Tools the host hard-disables for every session.
@@ -129,8 +131,12 @@ webui:
     tag: "20260928140031"
     pullPolicy: IfNotPresent
   port: 8080
+  deployment:
+    # ABCP-prefixed Deployment name (another stack also has an `agent-webui`
+    # Deployment in this cluster).
+    name: abcp-webui
   service:
-    name: agent
+    name: abcp-webui
     type: ClusterIP
   resources:
     requests: { cpu: 20m, memory: 32Mi }

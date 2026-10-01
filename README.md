@@ -78,6 +78,12 @@ the shared infra lives) and pick a release name that is NOT already used in the
 cluster. `platform` belongs to the `easy-vcs` stack — installing a second
 `platform` release silently UPGRADES theirs. Use `abcp-platform`.
 
+**Object names are ABCP-prefixed** (`abcp-agent`, `abcp-webui`, …) for the same
+reason: Helm does not enforce object ownership across releases, so a
+cluster-unique name (not `agent`, not `agent-webui`) prevents two releases from
+silently overwriting each other's objects. Before installing, run `helm-list`
+and `kubectl get` to confirm the names are free.
+
 The agent's metadata DB is the shared **Postgres** (`agent.db.backend: pg`), so
 no `/data` volume is used. Image tags are pinned in `values.yaml` and must match
 tags pushed by each repo's `build-image.sh` (`<registry>/abcp/<name>:<tag>`).
