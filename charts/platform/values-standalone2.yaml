@@ -32,8 +32,10 @@ infra:
 agent:
   image:
     repository: git.agent.svc.cluster.local/abcp/agent
-    tag: "20260929160000"
+    tag: "20261001095724"
     pullPolicy: IfNotPresent
+  # Plain HTTP/1.1 liveness/readiness port (separate from the h2c RPC port).
+  healthPort: 8081
   port: 8080
   service:
     name: standalone-agent
