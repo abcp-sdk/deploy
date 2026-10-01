@@ -141,23 +141,31 @@ echo "$A/artifacts/apk/v3.24/main" > /etc/apk/repositories
 # maven (java)
 mkdir -p ~/.m2 && printf '<settings><mirrors><mirror><id>artifact</id><mirrorOf>*</mirrorOf><url>%s/artifacts/maven/</url></mirror></mirrors></settings>' "$A" > ~/.m2/settings.xml
 
-# gradle (TWO blocks — allowInsecureProtocol is REQUIRED: Gradle 7+ rejects
-# plain-HTTP repos). `allprojects` covers project deps + the plugin MARKER
-# lookup, but plugin JARs resolve via `settings.pluginManagement`, whose default
-# is plugins.gradle.org — without the second block a plugin build still pulls
-# kotlin-gradle-plugin/* from the public internet.
+# gradle. `allowInsecureProtocol = true` is REQUIRED (Gradle 7+ rejects
+# plain-HTTP repos). The DEFAULT maven mount is Maven Central ONLY; Google Maven
+# (androidx / com.android.tools.build / AGP) and the Gradle Plugin Portal are
+# NAMED targets. THREE repositories, and the ORDER MATTERS — list maven.google /
+# maven.gradle BEFORE maven (see gotcha): Gradle pins a plugin's JAR to the
+# repository that resolved its marker, and a cold AGP jar is 404 on the default
+# `maven`. Two blocks: `allprojects` for project deps + the plugin MARKER lookup;
+# `settings.pluginManagement` for plugin JARs (its default is plugins.gradle.org).
 mkdir -p ~/.gradle
 cat > ~/.gradle/init.gradle <<GRADLE
+def mirrors = [
+  "$A/artifacts/maven.google/",   // dl.google.com/dl/android/maven2 (androidx/AGP) — FIRST
+  "$A/artifacts/maven.gradle/",   // plugins.gradle.org/m2 (Gradle Plugin Portal)
+  "$A/artifacts/maven/",          // repo.maven.apache.org/maven2 (Central) — LAST
+]
 allprojects {
   repositories {
     clear()
-    maven { url "$A/artifacts/maven/"; allowInsecureProtocol = true }
+    mirrors.each { u -> maven { url u; allowInsecureProtocol = true } }
   }
 }
 settingsEvaluated { settings ->
   settings.pluginManagement.repositories {
     clear()
-    maven { url "$A/artifacts/maven/"; allowInsecureProtocol = true }
+    mirrors.each { u -> maven { url u; allowInsecureProtocol = true } }
   }
 }
 GRADLE
@@ -212,6 +220,18 @@ Per-protocol client setup (one-off commands, hosted-vs-upstream notes):
 - **Gradle** rejects plain-HTTP repositories unless you opt in — the
   `init.gradle` above sets `allowInsecureProtocol = true` (without it:
   "Using insecure protocols with repositories … is unsupported").
+- **Gradle/Maven: the default `maven` mount is Maven Central ONLY**, and the
+  repository ORDER matters. Google Maven (`androidx/*`, `com.android.tools.build`
+  / AGP) is the NAMED target `$A/artifacts/maven.google/`; the Gradle Plugin
+  Portal is `$A/artifacts/maven.gradle/`. Verified on a COLD cache: a fresh
+  `androidx` coordinate → 404 via `maven/`, 200 via `maven.google/`. All maven
+  mirrors share ONE cache, so after a pull through any target the others serve it
+  (that is why the default can *look* like it works — the 404 shows only cold).
+  **Put `maven.google` / `maven.gradle` BEFORE `maven`**: Gradle resolves a
+  plugin's *marker* from the first repository that has it (the default `maven`
+  proxies markers) and then pins that plugin's JAR to the SAME repository — where
+  a cold AGP jar is 404 ("Could not find gradle-9.4.0.jar … Searched in … maven/
+  com/android/tools/build/gradle/9.4.0/…"). Reordering fixed a full cold build.
 - **Gradle plugins need the SECOND block**: `allprojects { repositories { … } }`
   only covers project deps + the plugin *marker* lookup; the plugin JARs resolve
   through `settings.pluginManagement`, whose default is `plugins.gradle.org`. Keep
