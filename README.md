@@ -126,6 +126,13 @@ RBAC / cluster-scoped kinds) CANNOT apply it: apply it out-of-band (drop it into
 the k3s `server/manifests/` directory, or `kubectl apply -f` with
 cluster-admin). `generic-device-plugin.yaml` is likewise applied out-of-band.
 
+The desktop / macOS / Windows manifests back the `linux` / `macos` / `windows`
+sandboxes the second stack's worker-extension registers
+(`charts/platform/values-standalone2.yaml`), so their `WORKER_TOKEN` MUST match
+that `sandboxes` list. The macOS / Windows (and Android) manifests need a KVM
+node plus the device plugin; fill `<node-name>` / `<registry-credentials>` before
+applying.
+
 ## Working agreement (how every repo works now)
 
 **Code repos own code; this repo owns deployment.** Concretely:

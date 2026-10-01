@@ -43,7 +43,9 @@ There is no cluster access requirement to render. `helm lint` is optional.
   points the linux/macOS/windows entries at the standalone manifests in
   `worker-k8s/`, which live in the `worker` namespace
   (`agent-worker-desktop` / `agent-worker-macos` / `agent-worker-windows`).
-  Keep those in sync if the manifests move.
+  Keep those in sync if the manifests move. The manifests' `WORKER_TOKEN` and
+  the `sandboxes` `token` MUST match (`devdesktop-token` / `devmac-token` /
+  `devwin-token`) or the sandbox answers 401.
 - **Restricted deploy tools**: keep RBAC and privileged/hostPath kinds out of the
   default release path (see README). The platform chart ships only a namespaced
   ServiceAccount.
