@@ -1,0 +1,117 @@
+# agent-worker on macOS 15 (Sequoia) with Xcode — a lightweight sandbox worker.
+#
+# Same contract as k8s/agent-worker-macos.yaml, but a smaller footprint:
+#   * CPU_CORES=2, RAM_SIZE=8G (verified booting and serving on the same base)
+#   * image carries Xcode 26.3 Universal + the Command Line Tools (Swift 6.2.4,
+#     clang 17) so build agents can run `xcodebuild` / `swift build` directly.
+#
+# Increase CPU_CORES to a power of two (4/8/16) and RAM_SIZE for heavier builds;
+# the baked guest disk supports it without re-install.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-worker-macos-xcode
+  namespace: worker
+  labels:
+    app: agent-worker-macos-xcode
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-worker-macos-xcode
+  template:
+    metadata:
+      labels:
+        app: agent-worker-macos-xcode
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: <node-name>
+      # Only needed if the image comes from a private registry.
+      imagePullSecrets:
+        - name: <registry-credentials>
+      containers:
+        - name: macos
+          image: git.agent.svc.cluster.local/sandbox/sandbox-macos:xcode
+          imagePullPolicy: IfNotPresent
+
+          securityContext:
+            privileged: false
+            runAsUser: 0
+            allowPrivilegeEscalation: true
+            seccompProfile: { type: Unconfined }
+            appArmorProfile: { type: Unconfined }
+            capabilities:
+              add: ["NET_ADMIN","NET_RAW","SYS_NICE","MKNOD",
+                    "CHOWN","SETUID","SETGID","DAC_OVERRIDE","FOWNER","KILL"]
+
+          ports:
+            - { name: web, containerPort: 8006 }
+            - { name: worker, containerPort: 48080 }
+
+          env:
+            # Non-empty => the guest worker starts pre-authorized (no claim).
+            - { name: WORKER_TOKEN, value: "" }
+            - { name: VERSION, value: "15" }
+            # Lightweight default; raise to 4/8/16 for heavier builds.
+            - { name: CPU_CORES, value: "2" }
+            - { name: RAM_SIZE, value: "8192M" }
+            - { name: DISK_SIZE, value: "128G" }    # >= baked disk size
+            - { name: MANUAL, value: "N" }
+
+          resources:
+            requests: { cpu: "2", memory: "8Gi" }
+            limits:
+              cpu: "2"
+              memory: "12Gi"
+              squat.ai/kvm: "1"        # <- the KVM device request
+
+          volumeMounts:
+            - { name: devtun, mountPath: /dev/net/tun }
+      volumes:
+        - name: devtun
+          hostPath: { path: /dev/net/tun, type: CharDevice }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-worker-macos-xcode
+  namespace: worker
+  labels:
+    app: agent-worker-macos-xcode
+spec:
+  selector:
+    app: agent-worker-macos-xcode
+  ports:
+    - { name: http, port: 80, targetPort: 48080 }
+    - { name: worker, port: 48080, targetPort: 48080 }
+  type: ClusterIP
+---
+# SSH into the guest (read the enrollment code from /Users/docker/ewws/jobs.db).
+apiVersion: v1
+kind: Service
+metadata:
+  name: ssh-agent-worker-macos-xcode
+  namespace: worker
+  labels:
+    app: agent-worker-macos-xcode
+spec:
+  selector:
+    app: agent-worker-macos-xcode
+  ports:
+    - { name: ssh, port: 22, targetPort: 22 }
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-worker-macos-xcode-novnc
+  namespace: worker
+  labels:
+    app: agent-worker-macos-xcode
+spec:
+  selector:
+    app: agent-worker-macos-xcode
+  ports:
+    - { name: web, port: 80, targetPort: 8006 }
+  type: ClusterIP
