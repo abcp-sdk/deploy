@@ -72,6 +72,10 @@ kubectl -n worker get deploy,svc -l app.kubernetes.io/name=abcp-agent
 
 ## Migrating a chart change back to a code repo
 
+If a chart template still references a component's internals, prefer fixing the
+template here over re-adding k8s/ to the code repo. The code repo's README
+"Deploy" section should point at this repo.
+
 ## Package installs: use the in-cluster `artifact` mirror (do not hit the public internet)
 
 Every package manager in a dev container / sandbox should fetch through the
@@ -208,7 +212,3 @@ curl -s -o /dev/null -w '%{http_code}\n' http://artifact.worker.svc.cluster.loca
 > The mirror is **shared** — pull is anonymous; a **push** needs a write-level
 > token (never hard-code one). Point each repo at it so CI and interactive
 > containers stop re-downloading the same packages from the public internet.
-
-If a chart template still references a component's internals, prefer fixing the
-template here over re-adding k8s/ to the code repo. The code repo's README
-"Deploy" section should point at this repo.
