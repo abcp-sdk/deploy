@@ -66,10 +66,65 @@ selenium:
     requests: { cpu: 100m, memory: 512Mi }
     limits: { cpu: "1", memory: 2Gi }
 
-# Optional model-registry seed (AGENT_PROVIDER_SEED). JSON array of providers;
-# seeded into any tenant that has NO providers yet (create-if-absent). Leave
-# empty to configure providers via the UI / AdminService.
-providers: ""
+# Model-registry seed (AGENT_PROVIDER_SEED): seeded into any tenant that has NO
+# providers yet (create-if-absent; a UI edit always wins). One shared gateway;
+# `tenant: "*"` fans the list out to every tenant. Deliberately NO `local/*`
+# models and NO video. The apiKey is NOT stored here — see `providerApiKey`.
+providers:
+  - tenant: "*"
+    providerId: gateway-text
+    capability: text
+    apiType: vercel-compatible-gateway
+    baseUrl: https://api-gray.xueersi.com/ai-multimodal-gateway/v4/ai
+    models:
+      - { id: tal-coding/deepseek-v4.1-flash, name: DeepSeek V4.1 Flash, contextLimit: 1000000 }
+      - { id: tal-coding/glm-5.3, name: GLM 5.3, contextLimit: 1000000 }
+      - { id: tal-coding/glm-5.3-flash, name: GLM 5.3 Flash, contextLimit: 1000000 }
+  - tenant: "*"
+    providerId: gateway-image
+    capability: image
+    apiType: vercel-compatible-gateway
+    baseUrl: https://api-gray.xueersi.com/ai-multimodal-gateway/v4/ai
+    models:
+      - { id: tal-coding-gptimage/gpt-image-2, name: GPT Image 2, contextLimit: 0 }
+      - { id: tal-coding-gptimage/gpt-image-2.5-flare, name: GPT Image 2.5 Flare, contextLimit: 0 }
+      - { id: tal-coding-gptimage/gpt-image-2.5-sunburst, name: GPT Image 2.5 Sunburst, contextLimit: 0 }
+  - tenant: "*"
+    providerId: gateway-speech
+    capability: speech
+    apiType: vercel-compatible-gateway
+    baseUrl: https://api-gray.xueersi.com/ai-multimodal-gateway/v4/ai
+    models:
+      - { id: mlops-tts-customvoice/qwen3-tts-customvoice, name: Qwen3 TTS CustomVoice, contextLimit: 0 }
+      - { id: mlops-tts-base/qwen3-tts-base, name: Qwen3 TTS Base, contextLimit: 0 }
+  - tenant: "*"
+    providerId: gateway-transcription
+    capability: transcription
+    apiType: vercel-compatible-gateway
+    baseUrl: https://api-gray.xueersi.com/ai-multimodal-gateway/v4/ai
+    models:
+      - { id: mlops-asr/qwen3-asr, name: Qwen3 ASR, contextLimit: 0 }
+  - tenant: "*"
+    providerId: gateway-embedding
+    capability: embedding
+    apiType: vercel-compatible-gateway
+    baseUrl: https://api-gray.xueersi.com/ai-multimodal-gateway/v4/ai
+    models:
+      - { id: mlops-embed/gte-multilingual-base, name: GTE Multilingual, contextLimit: 0 }
+  - tenant: "*"
+    providerId: gateway-rerank
+    capability: rerank
+    apiType: vercel-compatible-gateway
+    baseUrl: https://api-gray.xueersi.com/ai-multimodal-gateway/v4/ai
+    models:
+      - { id: mlops-rerank/gte-multilingual-reranker-base, name: GTE Reranker, contextLimit: 0 }
+  - tenant: "*"
+    providerId: gateway-realtime
+    capability: realtime
+    apiType: vercel-compatible-gateway
+    baseUrl: https://api-gray.xueersi.com/ai-multimodal-gateway/v4/ai
+    models:
+      - { id: mlops-voxtral/voxtral-realtime, name: Voxtral Realtime, contextLimit: 0 }
 
 # When set, injected as the `apiKey` of every provider above that does not carry
 # its own. Lets the key stay out of git: pass it at install time
