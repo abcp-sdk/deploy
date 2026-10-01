@@ -40,6 +40,10 @@ There is no cluster access requirement to render. `helm lint` is optional.
   gateway `providerApiKey` are placeholders (`REPLACE_ME`) passed at install
   time. `providerApiKey` is injected by the `abcp-agent.providersSeed` helper
   into every provider in `.Values.providers` that has no `apiKey` of its own.
+- **Upgrading a live release**: the infra secrets (`infra.nats.password`,
+  `infra.s3.accessKey`, `infra.s3.secretKey`) and `providerApiKey` are NOT in
+  `values.yaml`. Always `helm upgrade … --reuse-values` (or re-`--set` all of
+  them), otherwise the upgrade resets them to `REPLACE_ME` and breaks the agent.
 - **GUI worker endpoints**: to use the `computer-*` tools, set
   `workerExtension.sandboxes` to the standalone manifests under `worker-k8s/`
   (they live in the `worker` namespace: `agent-worker-desktop` /

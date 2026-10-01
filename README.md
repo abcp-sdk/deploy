@@ -84,6 +84,23 @@ cluster-unique name (not `agent`, not `agent-webui`) prevents two releases from
 silently overwriting each other's objects. Before installing, run `helm-list`
 and `kubectl get` to confirm the names are free.
 
+### Seeding the model registry (gateway apiKey)
+
+`values.yaml` carries the 7 gateway `providers` but **no apiKey**. Supply the key
+without committing it, either as a non-committed values file (gitignored, e.g.
+`providerKey.yaml` containing only `providerApiKey: <key>`) or via `--set`:
+
+```sh
+# upgrade the running release, keeping the infra secrets already set:
+helm upgrade abcp-platform ./charts/platform -n worker \
+  --reuse-values -f ./providerKey.yaml
+```
+
+**Always pass `--reuse-values`** (or re-`--set` the three infra secrets
+`infra.nats.password` / `infra.s3.accessKey` / `infra.s3.secretKey`): they were
+supplied at install time and are `REPLACE_ME` in `values.yaml`, so a plain
+upgrade would reset them and break the running agent.
+
 The agent's metadata DB is the shared **Postgres** (`agent.db.backend: pg`), so
 no `/data` volume is used. Image tags are pinned in `values.yaml` and must match
 tags pushed by each repo's `build-image.sh` (`<registry>/abcp/<name>:<tag>`).
