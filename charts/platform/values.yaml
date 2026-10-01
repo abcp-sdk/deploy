@@ -18,10 +18,10 @@
 
 namespaceOverride: ""
 
-# Object-name prefix so a SECOND agent stack can coexist in the SAME namespace
-# (the `agent` namespace) with distinct object names, e.g. `s2-`. Empty = the
-# original names (`standalone-agent`, `worker`, ...). The Service names below
-# must ALSO be prefixed in the values file.
+# Object-name prefix for the prefixed templates (worker, worker-extension,
+# playwright-extension, selenium). Empty = no prefix. Only ONE stack is
+# deployed, so this stays empty; the agent/webui Service names are set
+# explicitly below (and are already ABCP-prefixed).
 namePrefix: ""
 
 # ---- SHARED infrastructure endpoints (`worker` namespace, owned by easy-vcs/deploy) ----

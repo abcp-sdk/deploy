@@ -3,9 +3,8 @@
 {{- .Values.namespaceOverride | default .Release.Namespace -}}
 {{- end -}}
 
-{{/* Object-name + app-label prefix so a SECOND agent stack can coexist in the
-     SAME namespace with distinct names (e.g. `s2-standalone-agent`). Empty =
-     the original names. */}}
+{{/* Object-name + app-label prefix for the prefixed templates. Empty = no
+     prefix (only one stack is deployed). */}}
 {{- define "abcp-agent.prefix" -}}
 {{- .Values.namePrefix | default "" -}}
 {{- end -}}

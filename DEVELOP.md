@@ -6,9 +6,6 @@ The chart is a plain Helm v3 chart. Render it locally before opening an MR:
 
 ```sh
 helm template abcp-platform ./charts/platform -n worker
-# the second stack:
-helm template abcp-agent-s2 ./charts/platform -n worker \
-  -f ./charts/platform/values-standalone2.yaml
 ```
 
 There is no cluster access requirement to render. `helm lint` is optional.
@@ -43,13 +40,11 @@ There is no cluster access requirement to render. `helm lint` is optional.
   gateway `providerApiKey` are placeholders (`REPLACE_ME`) passed at install
   time. `providerApiKey` is injected by the `abcp-agent.providersSeed` helper
   into every provider in `.Values.providers` that has no `apiKey` of its own.
-- **GUI worker endpoints**: `values-standalone2.yaml`'s `workerExtension.sandboxes`
-  points the linux/macOS/windows entries at the standalone manifests in
-  `worker-k8s/`, which live in the `worker` namespace
-  (`agent-worker-desktop` / `agent-worker-macos` / `agent-worker-windows`).
-  Keep those in sync if the manifests move. The manifests' `WORKER_TOKEN` and
-  the `sandboxes` `token` MUST match (`devdesktop-token` / `devmac-token` /
-  `devwin-token`) or the sandbox answers 401.
+- **GUI worker endpoints**: to use the `computer-*` tools, set
+  `workerExtension.sandboxes` to the standalone manifests under `worker-k8s/`
+  (they live in the `worker` namespace: `agent-worker-desktop` /
+  `agent-worker-macos` / `agent-worker-windows`). The manifests' `WORKER_TOKEN`
+  and the `sandboxes` `token` MUST match or the sandbox answers 401.
 - **Restricted deploy tools**: keep RBAC and privileged/hostPath kinds out of the
   default release path (see README). The platform chart ships only a namespaced
   ServiceAccount.

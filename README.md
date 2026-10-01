@@ -37,11 +37,11 @@ over Service DNS and **never deploys them itself**:
 Because the services are shared, the account / bucket / database names MUST be
 ABCP-specific (distinct from every other stack on the same services):
 
-| Knob | Default stack | Second stack (`-s2`) |
-|---|---|---|
-| NATS account (user) | `abcp-agent` | `abcp-agent-s2` |
-| S3 bucket | `abcp-agent` | `abcp-agent-s2` |
-| Postgres database | `abcp_agent` | `abcp_agent_s2` |
+| Knob | Value |
+|---|---|
+| NATS account (user) | `abcp-agent` |
+| S3 bucket | `abcp-agent` |
+| Postgres database | `abcp_agent` |
 
 The NATS **password** and S3 **access/secret key** are issued by
 `easy-vcs/deploy`; pass them at install time (never commit them).
@@ -88,25 +88,6 @@ The agent's metadata DB is the shared **Postgres** (`agent.db.backend: pg`), so
 no `/data` volume is used. Image tags are pinned in `values.yaml` and must match
 tags pushed by each repo's `build-image.sh` (`<registry>/abcp/<name>:<tag>`).
 
-### A second, independent stack (`values-standalone2.yaml`)
-
-`charts/platform/values-standalone2.yaml` defines a SECOND, independent stack
-with its OWN NATS account / S3 bucket / Postgres database and its own
-`s2-`-prefixed Selenium (Selenium is self-deployed, so two stacks need distinct
-Service names):
-
-```sh
-helm install abcp-agent-s2 ./charts/platform -n worker \
-  -f ./charts/platform/values-standalone2.yaml \
-  --set infra.nats.password='<from easy-vcs>' \
-  --set infra.s3.accessKey='<from easy-vcs>' \
-  --set infra.s3.secretKey='<from easy-vcs>'
-```
-
-> **Not currently provisioned.** `easy-vcs/deploy` has only opened ONE ABCP
-> tenant (`abcp-agent`); there is no `abcp-agent-s2` account / bucket / database
-> yet. Request those before running the second stack.
-
 ### Restricted deploy tools (RBAC)
 
 An in-cluster restricted deploy tool (e.g. `helm-deploy`) renders a **whitelist**
@@ -143,11 +124,11 @@ the k3s `server/manifests/` directory, or `kubectl apply -f` with
 cluster-admin). `generic-device-plugin.yaml` is likewise applied out-of-band.
 
 The desktop / macOS / Windows manifests back the `linux` / `macos` / `windows`
-sandboxes the second stack's worker-extension registers
-(`charts/platform/values-standalone2.yaml`), so their `WORKER_TOKEN` MUST match
-that `sandboxes` list. The macOS / Windows (and Android) manifests need a KVM
-node plus the device plugin; fill `<node-name>` / `<registry-credentials>` before
-applying.
+GUI sandboxes you can register in the worker-extension's `sandboxes`
+(`workerExtension.sandboxes` in `charts/platform/values.yaml`); their
+`WORKER_TOKEN` MUST match that list. The macOS / Windows (and Android) manifests
+need a KVM node plus the device plugin; fill `<node-name>` /
+`<registry-credentials>` before applying.
 
 ## Working agreement (how every repo works now)
 
