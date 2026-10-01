@@ -141,8 +141,26 @@ echo "$A/artifacts/apk/v3.24/main" > /etc/apk/repositories
 # maven (java)
 mkdir -p ~/.m2 && printf '<settings><mirrors><mirror><id>artifact</id><mirrorOf>*</mirrorOf><url>%s/artifacts/maven/</url></mirror></mirrors></settings>' "$A" > ~/.m2/settings.xml
 
-# gradle (allowInsecureProtocol is REQUIRED: Gradle 7+ rejects plain-HTTP repos)
-mkdir -p ~/.gradle && printf 'allprojects{repositories{clear();maven{url "%s/artifacts/maven/"; allowInsecureProtocol = true}}}' "$A" > ~/.gradle/init.gradle
+# gradle (TWO blocks — allowInsecureProtocol is REQUIRED: Gradle 7+ rejects
+# plain-HTTP repos). `allprojects` covers project deps + the plugin MARKER
+# lookup, but plugin JARs resolve via `settings.pluginManagement`, whose default
+# is plugins.gradle.org — without the second block a plugin build still pulls
+# kotlin-gradle-plugin/* from the public internet.
+mkdir -p ~/.gradle
+cat > ~/.gradle/init.gradle <<GRADLE
+allprojects {
+  repositories {
+    clear()
+    maven { url "$A/artifacts/maven/"; allowInsecureProtocol = true }
+  }
+}
+settingsEvaluated { settings ->
+  settings.pluginManagement.repositories {
+    clear()
+    maven { url "$A/artifacts/maven/"; allowInsecureProtocol = true }
+  }
+}
+GRADLE
 
 # cargo (rust)
 mkdir -p ~/.cargo && printf '[source.crates-io]\nreplace-with="artifact"\n[source.artifact]\nregistry="sparse+%s/artifacts/cargo/index/"\n' "$A" > ~/.cargo/config.toml
@@ -184,7 +202,7 @@ Per-protocol client setup (one-off commands, hosted-vs-upstream notes):
 | pub (Dart) | `PUB_HOSTED_URL=$A/artifacts/pub` | ✅ `dart pub get` resolved 11 deps |
 | pip | `PIP_INDEX_URL=$A/artifacts/pypi/simple/` + `PIP_TRUSTED_HOST=…` | ✅ index 200 |
 | Go | `GOPROXY=$A/artifacts/go` + `GOSUMDB=off` | ✅ 200 |
-| Gradle/Maven | `$A/artifacts/maven/` + `allowInsecureProtocol = true` | ✅ resolves |
+| Gradle/Maven | `$A/artifacts/maven/` + `allowInsecureProtocol = true`; **both** the `allprojects` and the `settings.pluginManagement` block | ✅ all downloads via artifact (plugin JARs too) |
 | apt/Debian | `deb [trusted=yes] $A/artifacts/debian/debian trixie main` | ✅ `apt-get update` + install |
 | git (large repos) | `$A/artifacts/git/github.com/…` | ✅ `apple/swift-log`, `apple/swift-nio` clone |
 | SwiftPM | `~/.swiftpm/configuration/mirrors.json` | ✅ `swift package resolve` via artifact |
@@ -194,6 +212,13 @@ Per-protocol client setup (one-off commands, hosted-vs-upstream notes):
 - **Gradle** rejects plain-HTTP repositories unless you opt in — the
   `init.gradle` above sets `allowInsecureProtocol = true` (without it:
   "Using insecure protocols with repositories … is unsupported").
+- **Gradle plugins need the SECOND block**: `allprojects { repositories { … } }`
+  only covers project deps + the plugin *marker* lookup; the plugin JARs resolve
+  through `settings.pluginManagement`, whose default is `plugins.gradle.org`. Keep
+  it in `~/.gradle/init.gradle` (not the repo's generated `settings.gradle.kts`,
+  which should stay mirror-free). Verified against `agent-sdk-kotlin` (artifact
+  `20261001-2`, cache wiped): without it `gradle build` still pulled ~30 artifacts
+  (`kotlin-gradle-plugin-2.4.20-gradle96.jar`, …) from the public internet.
 - **Swift Package Manager** does NOT honor `git config url.<base>.insteadOf`
   (SPM resolves with libgit2, not the `git` CLI); use the `mirrors.json` above.
   The `easy-vcs/easyops` bootstrap pre-seeds the common `apple/*` mirrors.
