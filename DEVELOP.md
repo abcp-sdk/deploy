@@ -336,15 +336,17 @@ Fields (the installer MUST support these; do not freeze a narrower v1):
 - **`install[]`** (optional) — argv to run after unpacking for tools that are
   not "unpack and go": rust (`./install.sh --prefix={root} …`), ghcup, opam,
   r (source build). `{root}` expands to the version dir.
+- **`unpack_dir`** (optional) — unpack into `<version-root>/<unpack_dir>` and
+  run `install[]` there; `{root}` still means the VERSION ROOT and `bin` is
+  relative to it (rust's `install.sh` refuses to install into its own dir).
 - **`requires[]`** — toolchain dependencies (kotlin/scala/clojure/groovy →
   `java25`; ML chain cuda→torch→…→comfyui). The installer pulls these in
   automatically.
-
-**PLANNED (not yet in the schema)** — `env[]` (e.g. `LD_LIBRARY_PATH`): some
-"unpack and go" tools still need a runtime env var (`Dockerfile.ruby` sets
-`LD_LIBRARY_PATH=/opt/ruby/lib`). Until `env[]` exists, such a tool is NOT a
-pure-unpack candidate (ruby is deferred to phase 2 for this reason). Add the
-field before admitting it; do not fake it with `install[]`.
+- **`env[]`** (optional, IMPLEMENTED) — `{"NAME":"VALUE"}`, values support
+  `{root}`; written into the worker's process env after a successful install
+  (jobs inherit it). Used by ruby (`LD_LIBRARY_PATH`) and crystal
+  (`CRYSTAL_WORKERS=4`, avoids the CPU-count overflow on large nodes). This is
+  what makes "unpack + env" tools pure-unpack candidates.
 
 **Source of truth**: the index generator's `url` + `sha256` are authoritative
 (they come from the same `urls.env` / `fetch-artifacts.sh` cache the images are
@@ -409,3 +411,18 @@ layers are no longer built by default; those languages now install on demand
 (`sandbox-base` + `WORKSPACE_TOOLCHAINS`). The **data** (`toolchain-meta.sh` /
 index / `PUBLISHED_LANGS`) and `agent-toolchain/config.sh`'s `WORKSPACE_LANGS`
 are untouched. Existing published sandbox images are unaffected.
+
+**Phase 2 PUBLISHED (2026-10-02, worker MR #13) — 21 toolchains total.** The
+`env[]` + `unpack_dir` fields were added to make more tools pure-unpack:
+phase 2 adds `scala groovy deno julia crystal ocaml haskell ruby rust` (rust via
+`install[]` + `unpack_dir`; ruby/crystal via `env[]`). Verified on the real
+artifact (deno/rustc/ruby/scala-cli/julia/crystal/groovy/opam/ghcup, with
+`LD_LIBRARY_PATH` applied). **Deferred to phase 2b**: `lua`/`r` (source build),
+`elixir`/`gleam` (OTP+hex), `clang`, `java`/`swift` (huge), `conda`, `clojure`,
+`godot`, `perl`.
+
+> **Note for the next slimming pass**: phase 2 makes `scala`/`groovy`/`deno`/
+> `julia`/`crystal`/`ocaml`/`haskell`/`ruby`/`rust` runtime-installable too, so
+> they may join the runtime-install set — EXCEPT the same `.base`-parent caveat
+> as `java25`: `scala`/`clojure`/`groovy` build FROM `toolchain-java25`, so
+> decide their base treatment explicitly before removing them.
