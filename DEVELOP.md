@@ -321,12 +321,22 @@ Fields (the installer MUST support these; do not freeze a narrower v1):
 - **`strip`** + **`bin`** — unpack shape. Most are single-root + `strip: 1` +
   `bin`; python (python-build-standalone `install_only`) is already `bin/`
   layout (`strip: 0`); `bin` supports the `{root}` placeholder.
+- **`rename`** (optional) — `"src->dst"`, applied AFTER `strip`: renames the
+  top-level entry under the version root (dart ships `dart-sdk/` and needs
+  `dart-sdk->dart`; `bin` then points at `dart/bin`). Paths are relative to the
+  version root.
 - **`install[]`** (optional) — argv to run after unpacking for tools that are
   not "unpack and go": rust (`./install.sh --prefix={root} …`), ghcup, opam,
   r (source build). `{root}` expands to the version dir.
 - **`requires[]`** — toolchain dependencies (kotlin/scala/clojure/groovy →
   `java25`; ML chain cuda→torch→…→comfyui). The installer pulls these in
   automatically.
+
+**PLANNED (not yet in the schema)** — `env[]` (e.g. `LD_LIBRARY_PATH`): some
+"unpack and go" tools still need a runtime env var (`Dockerfile.ruby` sets
+`LD_LIBRARY_PATH=/opt/ruby/lib`). Until `env[]` exists, such a tool is NOT a
+pure-unpack candidate (ruby is deferred to phase 2 for this reason). Add the
+field before admitting it; do not fake it with `install[]`.
 
 **Source of truth**: the index generator's `url` + `sha256` are authoritative
 (they come from the same `urls.env` / `fetch-artifacts.sh` cache the images are
@@ -351,3 +361,17 @@ Consumer contract (worker side):
   — never a silent fallback to the bare base image.
 - RPC is deliberately deferred: start with the `toolchain-install` CLI + an
   implicit ensure before `Execute`; add a `WorkerService` RPC only once stable.
+
+### Phase 1 (published set) and the base-slimming gate
+
+Phase 1 publishes **11 pure-unpack toolchains** (the owner's 12 minus `ruby`,
+which needs the PLANNED `env[]`): `go`, `node`, `python`, `java25`, `dotnet`,
+`php` (+composer), `dart`, `kotlin`, `zig`, `bun`, `pixi`. Together they exercise
+every installer path: `tar.gz`/`tar.xz`/`zip`/`raw`, `strip 0|1`, `rename`,
+multi-file, and `requires` (kotlin→java25).
+
+**Base slimming is gated on a SUCCESSFUL publish.** Do NOT trim the base image /
+`sandbox-images/build.sh` `LANGS` until the phase-1 artifacts + `index.json`
+are actually live in artifact — otherwise a declared toolchain has nothing to
+install from. Slimming is a separate follow-up MR that removes ONLY phase-1
+covered languages and keeps `LANGS` in sync.
