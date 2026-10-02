@@ -497,3 +497,19 @@ the existing `host.lan:8090` nginx (`vm/{windows,macos}/00-token.conf` proxies
 Needs a VM image rebuild to take effect (the disk itself is unchanged); the
 deploy VM manifests need no override. Windows golden also installs `git`
 (`vm/windows/guest/oem-install.bat`, best-effort) for Flutter SDK git checkouts.
+
+**Phase 2b DONE (2026-10-02, worker MR #22/#23) — 32 toolchains.** Adds
+erlang/elixir/clojure/conda/perl (2b-2) and lua/r (2b-3). lua and r are
+SOURCE-BUILT at publish time into relocatable archives (`publish-artifacts.sh
+--build`), so runtime is still pure-unpack; r's relocatability is verified
+(moving the dir keeps `R --version` working — `bin/R` self-configures
+`R_HOME`/`LD_LIBRARY_PATH`). **r's runtime shared libs** (libgfortran/BLAS/
+LAPACK/readline/pcre2/curl/png/jpeg/tiff/cairo/X11) come from the BASE image
+(same `toolchain_deps` pattern as swift); bundling them + rpath is a follow-up.
+`clang` stays an IMAGE (its "no gcc" semantics don't hold on the shared base).
+Only `clang` + the GPU/pip chain + the VM/desktop images remain as images.
+
+**Submit gotcha (recorded in worker's AGENTS.md, noted here too)**:
+`sandbox-submit-mr` diffs the FILE SYSTEM and does NOT honor `.gitignore`, so
+multi-GB build/publish outputs (`agent-toolchain/cache/`, `.publish/`) make the
+first submit hang with no output. **Clean those before submitting.**
