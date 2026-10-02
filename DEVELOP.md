@@ -302,8 +302,12 @@ Fields (the installer MUST support these; do not freeze a narrower v1):
   elixir = OTP + elixir zip + hex `.ez` + registry key). `sha256` is REQUIRED
   and the installer MUST verify it (mismatch = hard failure, never a half
   install).
-- **`format`** — `tar.gz | tar.xz | zip | gz | phar` (dart/bun/deno/kotlin/
-  groovy/godot ship `.zip`; scala-cli is a bare `.gz`; composer is `.phar`).
+- **`format`** — `tar.gz | tar.xz | zip | gz | phar | raw` (dart/bun/deno/
+  kotlin/groovy/godot ship `.zip`; scala-cli is a bare `.gz`; composer is
+  `.phar`). **`raw`** = a bare single-file binary (no archive): pixi / deno /
+  ghcup / opam (extensionless binaries), conda (`.sh`). For `raw`, `bin` names
+  the FILE's path relative to the version root (the file itself, not a
+  directory); its PARENT directory is added to PATH.
 - **`strip`** + **`bin`** — unpack shape. Most are single-root + `strip: 1` +
   `bin`; python (python-build-standalone `install_only`) is already `bin/`
   layout (`strip: 0`); `bin` supports the `{root}` placeholder.
@@ -313,6 +317,13 @@ Fields (the installer MUST support these; do not freeze a narrower v1):
 - **`requires[]`** — toolchain dependencies (kotlin/scala/clojure/groovy →
   `java25`; ML chain cuda→torch→…→comfyui). The installer pulls these in
   automatically.
+
+**Source of truth**: the index generator's `url` + `sha256` are authoritative
+(they come from the same `urls.env` / `fetch-artifacts.sh` cache the images are
+built from). The per-language unpack metadata (`format` / `strip` / `bin` /
+`install[]`) starts from the generator's table but **MUST be checked against the
+language's `Dockerfile.<lang>`** — rust / lua / r / ghcup / opam / conda /
+elixir are the ones whose shape is not "single-root tar + strip 1 + bin".
 
 Consumer contract (worker side):
 
