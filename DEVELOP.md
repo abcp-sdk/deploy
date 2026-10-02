@@ -347,6 +347,14 @@ Fields (the installer MUST support these; do not freeze a narrower v1):
   (jobs inherit it). Used by ruby (`LD_LIBRARY_PATH`) and crystal
   (`CRYSTAL_WORKERS=4`, avoids the CPU-count overflow on large nodes). This is
   what makes "unpack + env" tools pure-unpack candidates.
+- **`os` / `arch`** (optional) — platform targeting, so ONE index serves linux
+  AND windows/macos sandboxes:
+  - on an **artifact**: `"os"`/`"arch"` restrict that file to a platform
+    (`linux`/`windows`/`darwin`, `amd64`/`arm64`); empty = wildcard. The
+    installer picks the files matching its own `GOOS`/`GOARCH`.
+  - on a **toolchain**: `"os": ["windows","darwin"]` means "installable only on
+    these hosts" (e.g. a desktop-packaging SDK); empty = any host. A toolchain
+    whose `os` excludes the current host is skipped, not failed.
 
 **Source of truth**: the index generator's `url` + `sha256` are authoritative
 (they come from the same `urls.env` / `fetch-artifacts.sh` cache the images are
