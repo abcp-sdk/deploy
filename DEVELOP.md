@@ -271,6 +271,16 @@ at artifact but must be overridable. The image hard-codes no index address.
 Published at `$A/artifacts/generic/toolchains/index.json`
 (`$A=http://artifact.worker.svc.cluster.local`).
 
+**Published tarballs** live in the same artifact generic store:
+`$A/artifacts/generic/toolchains/<lang>/<version>/<file>` (read is anonymous;
+write needs `ARTIFACT_TOKEN`). The **publisher is `agent-toolchain/`** in
+`abc-protocol/worker` (`fetch-artifacts.sh` → build/collect → `curl -X PUT` →
+`build-index.sh --publish`); the `abc-protocol/toolchains` repo is only the
+release/publishing home (docs + optional CI), NOT a second tool list. The
+**owner has decided to publish the full set** (internal, container-release-style
+distribution to our own cluster — not commercial redistribution), so no tool is
+dropped on license grounds.
+
 ```json
 {
   "schema": 1,
