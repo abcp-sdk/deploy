@@ -268,11 +268,19 @@ there is one place to drift-proof). The **installer does NOT hard-code the
 artifact URL** — it reads `WORKER_TOOLCHAIN_INDEX` (env); the default may point
 at artifact but must be overridable. The image hard-codes no index address.
 
-Published at `$A/artifacts/generic/toolchains/index.json`
+Published at `$A/artifacts/generic/toolchains/index/index.json`
 (`$A=http://artifact.worker.svc.cluster.local`).
 
-**Published tarballs** live in the same artifact generic store:
-`$A/artifacts/generic/toolchains/<lang>/<version>/<file>` (read is anonymous;
+**artifact generic is a FLAT 3-segment store** — `/{name}/{version}/{filename}`
+(see `easy-vcs/artifact` `generic/lib.go`: `len(parts) != 3 → 404`). A nested
+4-segment path (e.g. `…/generic/toolchains/<lang>/<version>/<file>`) returns
+**404 on PUT**. So the layout is flattened (still 3 segments):
+
+- tarball: `$A/artifacts/generic/toolchains-<lang>/<version>/<file>`
+  (e.g. `…/generic/toolchains-go/1.27.1/go1.27.1.linux-amd64.tar.gz`)
+- index: `$A/artifacts/generic/toolchains/index/index.json`
+
+**Published tarballs** live in that store (read is anonymous;
 write needs `ARTIFACT_TOKEN`). The **publisher is `agent-toolchain/`** in
 `abc-protocol/worker` (`fetch-artifacts.sh` → build/collect → `curl -X PUT` →
 `build-index.sh --publish`); the `abc-protocol/toolchains` repo is only the
