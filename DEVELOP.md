@@ -445,3 +445,19 @@ perl r conda godot cuda torch vllm vllm-omni llamacpp comfyui`. Another ~4.76 GB
 of layers no longer built by default. **Cumulative: 19 images / ~9.2 GB not
 built by default; `java25` (777 MB) kept.** Verified on the real artifact
 (rust/julia/ruby/go install → run; `LD_LIBRARY_PATH` applied).
+
+**Multi-platform (flutter) PUBLISHED (2026-10-02, worker MR #18/#19) — 21
+toolchains.** `os`/`arch` targeting is in use: `flutter` 3.47.6-stable has ONE
+index version with 4 artifacts (`linux/amd64`, `windows/amd64`, `darwin/amd64`,
+`darwin/arm64`), all uploaded + anonymous-GET-verified. The **linux publisher
+downloads the win/mac packages and uploads them as-is** — no win/mac build host
+needed (they are prebuilt, relocatable). The index is now 21 toolchains.
+`fetch-artifacts.sh` also supports index-only (no-Dockerfile) languages.
+
+**VM guest → artifact bridge**: the Windows/macOS guest reaches artifact through
+the existing `host.lan:8090` nginx (`vm/{windows,macos}/00-token.conf` proxies
+`/artifacts/`), and the guest launcher defaults
+`WORKER_TOOLCHAIN_INDEX=http://host.lan:8090/artifacts/generic/toolchains/index/index.json`.
+Needs a VM image rebuild to take effect (the disk itself is unchanged); the
+deploy VM manifests need no override. Windows golden also installs `git`
+(`vm/windows/guest/oem-install.bat`, best-effort) for Flutter SDK git checkouts.
