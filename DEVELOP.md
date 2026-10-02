@@ -383,3 +383,18 @@ multi-file, and `requires` (kotlin→java25).
 are actually live in artifact — otherwise a declared toolchain has nothing to
 install from. Slimming is a separate follow-up MR that removes ONLY phase-1
 covered languages and keeps `LANGS` in sync.
+
+**Phase 1 is PUBLISHED (2026-10-02) → slimming is authorized.** Live in artifact
+(`$A/artifacts/generic/toolchains/index/index.json` + `toolchains-<lang>/…`):
+go 1.27.1, node 26.9.0, python 3.14.7, java25 25.0.4.1, dotnet 10.0.401,
+php 8.5.8 (+composer), dart 3.13.4, kotlin 2.4.20, zig 0.16.0, bun 1.4.2,
+pixi. Verified end-to-end from the real artifact (anonymous GET 200; install →
+run `go`/`node`/`kotlinc`/`java`/`pixi`; sha mismatch hard-fails, no
+half-install).
+
+**Slimming constraint — keep `java25` in the base.** `java25` is BOTH a
+phase-1 toolchain AND the parent of the kotlin/scala/clojure/groovy images
+(`kotlin.base` etc. `FROM toolchain-java25`). If it is dropped from the base
+while those images still build FROM it, they break. Either (a) keep `java25`
+preinstalled in the base, or (b) re-point the `<lang>.base` parents to the
+installable toolchain path — decide explicitly, don't remove it silently.
