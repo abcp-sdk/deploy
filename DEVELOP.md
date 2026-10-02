@@ -339,6 +339,19 @@ Fields (the installer MUST support these; do not freeze a narrower v1):
 - **`unpack_dir`** (optional) — unpack into `<version-root>/<unpack_dir>` and
   run `install[]` there; `{root}` still means the VERSION ROOT and `bin` is
   relative to it (rust's `install.sh` refuses to install into its own dir).
+- **`install_prefix`** (optional, default empty = version root) — the directory
+  an `install[]` RUNNER produces, relative to the version root. When set, the
+  `{root}` placeholder in `install[]` AND `bin` are both resolved against
+  `<version-root>/<install_prefix>` (i.e. the "installer-produced dir" layer).
+  Needed by INSTALLER-style tools whose real `bin/` lands in a subdir, e.g.
+  conda: `unpack_dir: miniconda` + `install: ["bash","bin/miniconda.sh","-b","-p","{root}"]`
+  + `bin: bin` + `install_prefix: miniconda`. (Without this, `bin` can only name
+  a path under the version root, not the installer's output dir.)
+- **`toolchain_deps`** (BUILD-TIME only, not runtime) — apt packages the
+  toolchain links against (e.g. `swift` needs a set of shared libs). The
+  PUBLISHER installs them in its own build container; the index/installer do NOT
+  carry them. If a toolchain needs runtime shared libs, either keep them in the
+  base image or bundle them into the archive (see the R note).
 - **`requires[]`** — toolchain dependencies (kotlin/scala/clojure/groovy →
   `java25`; ML chain cuda→torch→…→comfyui). The installer pulls these in
   automatically.
