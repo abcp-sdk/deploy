@@ -189,7 +189,12 @@ printf 'channels:\n  - %s/artifacts/conda/pkgs/main\n' "$A" > ~/.condarc
 git config --global url."$A/artifacts/git/github.com/".insteadOf https://github.com/
 
 # Swift Package Manager: SPM uses libgit2 and IGNORES git's insteadOf, so it
-# needs its own native mirror file (an OBJECT, no wildcards):
+# needs its own native mirror file (an OBJECT, no wildcards).
+# NOTE: the mirror file's LOCATION differs by toolchain — Linux reads the
+# global `~/.swiftpm/configuration/mirrors.json`, but macOS/Xcode does NOT (it
+# reads the PACKAGE-local `.swiftpm/configuration/mirrors.json`). Prefer
+# `swift package config set-mirror --package-path <pkg> ...` (writes where the
+# current toolchain actually reads), or write BOTH locations:
 mkdir -p ~/.swiftpm/configuration
 cat > ~/.swiftpm/configuration/mirrors.json <<JSON
 { "version": 1, "object": [
@@ -241,6 +246,12 @@ Per-protocol client setup (one-off commands, hosted-vs-upstream notes):
   (`kotlin-gradle-plugin-2.4.20-gradle96.jar`, …) from the public internet.
 - **Swift Package Manager** does NOT honor `git config url.<base>.insteadOf`
   (SPM resolves with libgit2, not the `git` CLI); use the `mirrors.json` above.
+  **Its location is toolchain-specific**: Linux reads the global
+  `~/.swiftpm/configuration/mirrors.json`; **macOS/Xcode ignores the global
+  file and reads the PACKAGE-local `.swiftpm/configuration/mirrors.json`** —
+  use `swift package config set-mirror` (writes to the right place) or write
+  both. (Verified on macOS/Xcode 26.3: a bogus GLOBAL mirror was still ignored
+  and github.com was hit.)
   The `easy-vcs/easyops` bootstrap pre-seeds the common `apple/*` mirrors.
   (artifact `20261001-2` fixed its git proxy for large/many-ref repos — earlier
   `apple/swift-log` clones failed with `bad line length character`.)
