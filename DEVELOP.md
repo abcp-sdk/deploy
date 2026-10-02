@@ -398,3 +398,14 @@ phase-1 toolchain AND the parent of the kotlin/scala/clojure/groovy images
 while those images still build FROM it, they break. Either (a) keep `java25`
 preinstalled in the base, or (b) re-point the `<lang>.base` parents to the
 installable toolchain path — decide explicitly, don't remove it silently.
+
+**Slimming DONE (2026-10-02, worker MR #9).** Chose option (a): `java25` stays
+preinstalled. `sandbox-images/build.sh`'s default `LANGS` dropped the 10
+runtime-installable languages (go/node/python/dotnet/php/dart/kotlin/zig/bun/
+pixi) and keeps everything not yet runtime-installable (rust/java/java25/scala/
+clojure/groovy/elixir/gleam/ruby/swift/clang/deno/julia/crystal/ocaml/haskell/
+lua/perl/r/conda/godot/cuda/torch/vllm*/llamacpp/comfyui). ~4.46 GB of image
+layers are no longer built by default; those languages now install on demand
+(`sandbox-base` + `WORKSPACE_TOOLCHAINS`). The **data** (`toolchain-meta.sh` /
+index / `PUBLISHED_LANGS`) and `agent-toolchain/config.sh`'s `WORKSPACE_LANGS`
+are untouched. Existing published sandbox images are unaffected.
