@@ -25,7 +25,13 @@ metadata:
     {{- include "abcp-agent.labels" . | nindent 4 }}
     app: {{ .Values.agent.service.name }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.agent.replicas | default 1 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Never take the only healthy replica down first (no rollout outage).
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: {{ .Values.agent.service.name }}
@@ -176,6 +182,24 @@ spec:
             type: {{ .Values.persistence.type }}
           {{- end }}
       {{- end }}
+{{- if gt (int (.Values.agent.replicas | default 1)) 1 }}
+---
+# Keep at least one replica available during voluntary disruptions (node drain,
+# rollout).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Values.agent.service.name }}
+  namespace: {{ include "abcp-agent.namespace" . }}
+  labels:
+    {{- include "abcp-agent.labels" . | nindent 4 }}
+    app: {{ .Values.agent.service.name }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.agent.service.name }}
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
