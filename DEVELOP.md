@@ -257,3 +257,76 @@ curl -s -o /dev/null -w '%{http_code}\n' http://artifact.worker.svc.cluster.loca
 > The mirror is **shared** — pull is anonymous; a **push** needs a write-level
 > token (never hard-code one). Point each repo at it so CI and interactive
 > containers stop re-downloading the same packages from the public internet.
+
+## Toolchain index (on-demand language toolchains)
+
+Interface CONTRACT for the worker's on-demand toolchain installer
+(`EnsureToolchains` / `toolchain-install`). The worker implements it; the index
+itself is generated + published by `abc-protocol/worker`'s `agent-toolchain/`
+(URLs + sha256 come from the same `urls.env` / `fetch-artifacts.sh` source, so
+there is one place to drift-proof). The **installer does NOT hard-code the
+artifact URL** — it reads `WORKER_TOOLCHAIN_INDEX` (env); the default may point
+at artifact but must be overridable. The image hard-codes no index address.
+
+Published at `$A/artifacts/generic/toolchains/index.json`
+(`$A=http://artifact.worker.svc.cluster.local`).
+
+```json
+{
+  "schema": 1,
+  "toolchains": {
+    "go": {
+      "requires": [],
+      "versions": {
+        "1.27.1": {
+          "artifacts": [
+            { "url": "…/go1.27.1.linux-amd64.tar.gz", "sha256": "…",
+              "format": "tar.gz", "strip": 1, "bin": "bin" }
+          ]
+        }
+      }
+    },
+    "rust": {
+      "versions": { "1.98.1": {
+        "artifacts": [ { "url": "…/rust-1.98.1-…tar.gz", "sha256": "…", "format": "tar.gz" } ],
+        "install": ["./install.sh", "--prefix={root}", "--disable-ldconfig"]
+      } }
+    }
+  }
+}
+```
+
+Fields (the installer MUST support these; do not freeze a narrower v1):
+
+- **`artifacts[]`** — one OR MORE files per version (php = php + composer.phar;
+  elixir = OTP + elixir zip + hex `.ez` + registry key). `sha256` is REQUIRED
+  and the installer MUST verify it (mismatch = hard failure, never a half
+  install).
+- **`format`** — `tar.gz | tar.xz | zip | gz | phar` (dart/bun/deno/kotlin/
+  groovy/godot ship `.zip`; scala-cli is a bare `.gz`; composer is `.phar`).
+- **`strip`** + **`bin`** — unpack shape. Most are single-root + `strip: 1` +
+  `bin`; python (python-build-standalone `install_only`) is already `bin/`
+  layout (`strip: 0`); `bin` supports the `{root}` placeholder.
+- **`install[]`** (optional) — argv to run after unpacking for tools that are
+  not "unpack and go": rust (`./install.sh --prefix={root} …`), ghcup, opam,
+  r (source build). `{root}` expands to the version dir.
+- **`requires[]`** — toolchain dependencies (kotlin/scala/clojure/groovy →
+  `java25`; ML chain cuda→torch→…→comfyui). The installer pulls these in
+  automatically.
+
+Consumer contract (worker side):
+
+- env `WORKER_TOOLCHAIN_INDEX` (default = the artifact path above),
+  `WORKER_TOOLCHAIN_ROOT` (default `/opt/toolchains`).
+- Idempotent + **atomic**: unpack into `$ROOT/<lang>/<ver>.tmp`, verify sha256,
+  then `rename` to `$ROOT/<lang>/<ver>`; skip when present and verified.
+- **Concurrency**: `flock` on `$ROOT` (several jobs/processes may ensure the
+  same spec).
+- **PATH, two layers**: the image ENV pre-sets `$ROOT/*/*/bin`; and on success
+  the worker merges the new `bin` dirs into its OWN process env
+  (`os.Setenv("PATH", …)`) so subsequent jobs (which inherit the worker env)
+  see them immediately.
+- **Failure**: an `Execute`-time ensure failure FAILS the job with a clear error
+  — never a silent fallback to the bare base image.
+- RPC is deliberately deferred: start with the `toolchain-install` CLI + an
+  implicit ensure before `Execute`; add a `WorkerService` RPC only once stable.
