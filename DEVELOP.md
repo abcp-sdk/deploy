@@ -358,6 +358,18 @@ Fields (the installer MUST support these; do not freeze a narrower v1):
   conda: `unpack_dir: miniconda` + `install: ["bash","bin/miniconda.sh","-b","-p","{root}"]`
   + `bin: bin` + `install_prefix: miniconda`. (Without this, `bin` can only name
   a path under the version root, not the installer's output dir.)
+  **`install_prefix` also marks the tool as INSTALLER-STYLE**, which changes the
+  install strategy: such installers bake the produced path into files (Miniconda
+  rewrites every script's shebang), so the atomic `.tmp` → `rename` would break
+  those paths. Installer-style tools therefore install **IN PLACE** (with
+  half-install cleanup on failure); ordinary toolchains keep atomic tmp+rename.
+  **`install[]` must NOT bake `{root}` absolute paths into generated scripts**
+  (they would point at the `.tmp` dir after rename) — use relative paths, e.g.
+  `$(dirname "$0")/../libexec/...`.
+- **`install[]` form**: the value is a **shell command** — `["sh","-c","<cmd>"]`
+  is the generated form (supports `&&`, pipes, quoting), and the installer runs
+  it as plain argv (`sh -c` is the interpreter). Recorded so the "argv" wording
+  above is not taken literally.
 - **`toolchain_deps`** (BUILD-TIME only, not runtime) — apt packages the
   toolchain links against (e.g. `swift` needs a set of shared libs). The
   PUBLISHER installs them in its own build container; the index/installer do NOT
