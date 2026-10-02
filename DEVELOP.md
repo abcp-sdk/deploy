@@ -426,3 +426,14 @@ artifact (deno/rustc/ruby/scala-cli/julia/crystal/groovy/opam/ghcup, with
 > they may join the runtime-install set — EXCEPT the same `.base`-parent caveat
 > as `java25`: `scala`/`clojure`/`groovy` build FROM `toolchain-java25`, so
 > decide their base treatment explicitly before removing them.
+
+**Phase 2 slimming DONE (2026-10-02, worker MR #15).** The default `LANGS`
+dropped the 9 phase-2 languages too (rust/scala/groovy/deno/julia/crystal/
+ocaml/haskell/ruby); `java25` kept (option (a)) — `.base` parents only affect
+the toolchain images, not the sandbox default set, so removing scala/groovy is
+safe; `clojure` is unpublished and stays in the default set. New default set =
+not-yet-published only: `base java java25 clojure elixir gleam swift clang lua
+perl r conda godot cuda torch vllm vllm-omni llamacpp comfyui`. Another ~4.76 GB
+of layers no longer built by default. **Cumulative: 19 images / ~9.2 GB not
+built by default; `java25` (777 MB) kept.** Verified on the real artifact
+(rust/julia/ruby/go install → run; `LD_LIBRARY_PATH` applied).
